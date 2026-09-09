@@ -3,8 +3,17 @@
 {% block content %}
 <div class="toolbar">
     <div class="filter-group">
-        <label>关键字</label>
-        <input type="text" name="q" form="f" placeholder="名称/编号" value="{{ filters.q }}">
+        <label>搜索</label>
+        <div class="search-row">
+            <input type="text" id="search-q" name="q" form="f"
+                   value="{{ filters.q }}"
+                   placeholder="{% if filters.field == 'person' %}责任人/实际使用人{% else %}资产编号/名称{% endif %}">
+            <button type="button" class="btn btn-outline search-toggle-btn" id="search-toggle-btn"
+                    onclick="toggleSearchField()" title="切换搜索方式">
+                {% if filters.field == 'person' %}资产编号搜索{% else %}人名搜索{% endif %}
+            </button>
+        </div>
+        <input type="hidden" id="search-field" name="field" form="f" value="{{ filters.field }}">
     </div>
     <div class="filter-group">
         <label>状态</label>
@@ -141,6 +150,22 @@
 
 {% block scripts %}
 <script>
+// 资产库搜索模式切换：asset=按名称/编号（默认）；person=按责任人/实际使用人
+function toggleSearchField() {
+    var field = document.getElementById('search-field');
+    var q = document.getElementById('search-q');
+    var btn = document.getElementById('search-toggle-btn');
+    if (!field || !q || !btn) return;
+    if (field.value === 'person') {
+        field.value = 'asset';
+        q.placeholder = '资产编号/名称';
+        btn.textContent = '人名搜索';
+    } else {
+        field.value = 'person';
+        q.placeholder = '责任人/实际使用人';
+        btn.textContent = '资产编号搜索';
+    }
+}
 function toggleAll(cb) {
     document.querySelectorAll('.table .sel').forEach(function (c) { c.checked = cb.checked; });
     updateSelCount();

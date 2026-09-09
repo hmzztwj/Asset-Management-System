@@ -31,3 +31,4 @@ Thumbs.db
 # ---- 备份目录/文件（若误置于项目内也不入库）----
 *backup*/
 *backup*
+*.searchtoggle_*

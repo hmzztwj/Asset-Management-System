@@ -10,7 +10,7 @@ from django.contrib.auth import authenticate, login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.paginator import Paginator
-from django.db.models import Count, Sum
+from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
@@ -196,6 +196,10 @@ def library(request):
     category = request.GET.get('category', '')
     dept_id = request.GET.get('department', '')
     keyword = request.GET.get('q', '').strip()
+    # 搜索模式：asset=按名称/资产编号；person=按责任人/实际使用人
+    field = request.GET.get('field', 'asset')
+    if field not in ('asset', 'person'):
+        field = 'asset'
     sort = request.GET.get('sort', 'asset_id')
     direction = request.GET.get('dir', 'asc')
 
@@ -207,7 +211,12 @@ def library(request):
     if dept_id:
         qs = qs.filter(department_id=dept_id)
     if keyword:
-        qs = qs.filter(name__icontains=keyword) | qs.filter(asset_id__icontains=keyword)
+        if field == 'person':
+            # 责任人 / 实际使用人 模糊匹配
+            qs = qs.filter(Q(responsible__icontains=keyword) | Q(user__icontains=keyword))
+        else:
+            # 资产名称 / 资产编号 模糊匹配（默认）
+            qs = qs.filter(Q(name__icontains=keyword) | Q(asset_id__icontains=keyword))
 
     # 排序白名单
     sort_map = {
@@ -268,6 +277,7 @@ def library(request):
             'category': category,
             'department': dept_id,
             'q': keyword,
+            'field': field,
         },
     }
     return render(request, 'library.html', context)
