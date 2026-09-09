@@ -1,0 +1,9 @@
+# Windows 批处理必须 CRLF，否则 cmd 解析会行拼接错位
+*.bat text eol=crlf
+*.cmd text eol=crlf
+# 脚本与文本保持 LF
+*.py text eol=lf
+*.sh text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.html text eol=lf
