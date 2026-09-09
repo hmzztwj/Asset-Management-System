@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+{% load app_filters %}
+{% block content %}
+<div class="toolbar">
+    <div class="filter-group">
+        <label>关键字</label>
+        <input type="text" name="q" form="f" placeholder="名称/编号" value="{{ filters.q }}">
+    </div>
+    <div class="filter-group">
+        <label>状态</label>
+        <select name="status" form="f">
+            <option value="">全部</option>
+            <option value="在用" {% if filters.status == '在用' %}selected{% endif %}>在用</option>
+            <option value="库存" {% if filters.status == '库存' %}selected{% endif %}>库存</option>
+            <option value="维修" {% if filters.status == '维修' %}selected{% endif %}>维修</option>
+            <option value="报废" {% if filters.status == '报废' %}selected{% endif %}>报废</option>
+        </select>
+    </div>
+    <div class="filter-group">
+        <label>类别</label>
+        <select name="category" form="f">
+            <option value="">全部</option>
+            {% for c in '电脑,办公家具,网络设备,软件,办公电器,其他'|split:',' %}
+                <option value="{{ c }}" {% if filters.category == c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="filter-group">
+        <label>部门</label>
+        <select name="department" form="f">
+            <option value="">全部</option>
+            {% for d in departments %}
+                <option value="{{ d.id }}" {% if filters.department == d.id|stringformat:'s' %}selected{% endif %}>{{ d.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="filter-group">
+        <label>每页</label>
+        <select onchange="location.href=this.value">
+            {% for p in per_page_choices %}
+                <option value="?{% if qs_no_perpage %}{{ qs_no_perpage }}&{% endif %}per_page={{ p }}"
+                        {% if p == per_page %}selected{% endif %}>{{ p }} 条/页</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button class="btn" type="submit" form="f">查询</button>
+    <a class="btn btn-outline" href="{% url 'library' %}">重置</a>
+    <div class="spacer"></div>
+    {% if user|has_perm:'manage_assets' %}
+    <a class="btn btn-outline" href="{% url 'asset_import' %}">⬆ 导入Excel</a>
+    <a class="btn" href="{% url 'asset_create' %}">＋ 新增资产</a>
+    <a class="btn btn-danger btn-outline-danger" href="#" onclick="submitBulkDelete();return false;">🗑 批量删除</a>
+    {% endif %}
+    <a class="btn btn-outline" href="?{% if base_qs %}{{ base_qs }}&{% endif %}export=csv">⬇ 导出CSV</a>
+</div>
+<form id="f" method="get"></form>
+
+<!-- 批量操作提交表单（隐藏） -->
+<form id="bulk-delete-form" method="post" action="{% url 'assets_bulk_delete' %}">
+    {% csrf_token %}
+    <input type="hidden" name="ids" value="">
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+</form>
+
+<div class="card">
+    <div class="card-title">资产清单（共 {{ page_obj.paginator.count }} 项）
+        {% if user|has_perm:'manage_assets' %}
+        <span class="sel-count" id="sel-count"></span>
+        {% endif %}
+    </div>
+    {% if assets %}
+    <div class="table-wrap">
+    <table class="table">
+        <thead>
+            <tr>
+                {% if user|has_perm:'manage_assets' %}
+                <th class="th-check"><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
+                {% endif %}
+                <th><a class="th-sort" href="?{{ base_qs }}{% if base_qs %}&{% endif %}sort=asset_id&dir={% if sort == 'asset_id' and direction == 'asc' %}desc{% else %}asc{% endif %}">资产编码{% if sort == 'asset_id' %}<span class="arrow">{% if direction == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
+                <th><a class="th-sort" href="?{{ base_qs }}{% if base_qs %}&{% endif %}sort=status&dir={% if sort == 'status' and direction == 'asc' %}desc{% else %}asc{% endif %}">资产状态{% if sort == 'status' %}<span class="arrow">{% if direction == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
+                <th><a class="th-sort" href="?{{ base_qs }}{% if base_qs %}&{% endif %}sort=name&dir={% if sort == 'name' and direction == 'asc' %}desc{% else %}asc{% endif %}">资产名称{% if sort == 'name' %}<span class="arrow">{% if direction == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
+                <th>序列号</th>
+                <th><a class="th-sort" href="?{{ base_qs }}{% if base_qs %}&{% endif %}sort=category&dir={% if sort == 'category' and direction == 'asc' %}desc{% else %}asc{% endif %}">资产类别{% if sort == 'category' %}<span class="arrow">{% if direction == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
+                <th><a class="th-sort" href="?{{ base_qs }}{% if base_qs %}&{% endif %}sort=department&dir={% if sort == 'department' and direction == 'asc' %}desc{% else %}asc{% endif %}">所属部门{% if sort == 'department' %}<span class="arrow">{% if direction == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
+                <th>责任人</th>
+                <th>实际使用人</th>
+                <th>规格</th>
+                <th>配置</th>
+                <th><a class="th-sort" href="?{{ base_qs }}{% if base_qs %}&{% endif %}sort=price&dir={% if sort == 'price' and direction == 'asc' %}desc{% else %}asc{% endif %}">资产价值(元){% if sort == 'price' %}<span class="arrow">{% if direction == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
+                <th>存放位置</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in assets %}
+            <tr>
+                {% if user|has_perm:'manage_assets' %}
+                <td class="th-check"><input type="checkbox" class="sel" value="{{ a.pk }}" onchange="updateSelCount()"></td>
+                {% endif %}
+                <td>{{ a.asset_id }}</td>
+                <td>
+                    {% if a.status == '在用' %}<span class="badge green">{{ a.status }}</span>
+                    {% elif a.status == '库存' %}<span class="badge">{{ a.status }}</span>
+                    {% elif a.status == '借出' %}<span class="badge amber">{{ a.status }}</span>
+                    {% elif a.status == '维修' %}<span class="badge amber">{{ a.status }}</span>
+                    {% else %}<span class="badge red">{{ a.status }}</span>{% endif %}
+                </td>
+                <td>{{ a.name }}</td>
+                <td>{{ a.serial|default:'—' }}</td>
+                <td>{{ a.category }}</td>
+                <td>{{ a.department.name|default:'—' }}</td>
+                <td>{{ a.responsible|default:'—' }}</td>
+                <td>{{ a.user|default:'—' }}</td>
+                <td>{{ a.specification|default:'—' }}</td>
+                <td>{{ a.configuration|default:'—' }}</td>
+                <td>{{ a.price }}</td>
+                <td>{{ a.location|default:'—' }}</td>
+                <td>
+                    {% if user|has_perm:'manage_assets' %}
+                    <div class="col-actions">
+                        <a class="btn btn-sm" href="{% url 'asset_update' a.pk %}" title="编辑资产">编辑</a>
+                        <form method="post" action="{% url 'asset_delete' a.pk %}" id="del-asset-{{ a.pk }}"
+                              onsubmit="return confirmAction('确认删除资产「{{ a.name }}」？此操作不可撤销。', 'del-asset-{{ a.pk }}');">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-danger btn-outline-danger" type="submit" title="删除资产">删除</button>
+                        </form>
+                    </div>
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty">暂无资产，点击右上角「新增资产」添加。</div>
+    {% endif %}
+    {% include '_pagination.html' %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleAll(cb) {
+    document.querySelectorAll('.table .sel').forEach(function (c) { c.checked = cb.checked; });
+    updateSelCount();
+}
+function updateSelCount() {
+    var n = document.querySelectorAll('.table .sel:checked').length;
+    var el = document.getElementById('sel-count');
+    if (el) { el.textContent = n > 0 ? '（已选 ' + n + ' 项）' : ''; }
+}
+function submitBulkDelete() {
+    var sel = document.querySelectorAll('.table .sel:checked');
+    if (sel.length === 0) { alert('请先勾选要删除的资产。'); return false; }
+    var ids = Array.prototype.map.call(sel, function (c) { return c.value; }).join(',');
+    var f = document.getElementById('bulk-delete-form');
+    f.querySelector('[name=ids]').value = ids;
+    confirmAction('确认删除选中的 ' + sel.length + ' 条资产？此操作不可撤销。', 'bulk-delete-form');
+    return false;
+}
+</script>
+{% endblock %}

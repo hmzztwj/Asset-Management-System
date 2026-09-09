@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% load app_filters %}
+{% block content %}
+<div class="stat-grid">
+    <div class="stat-card"><div class="stat-icon">🏢</div><div class="stat-info"><div class="stat-value">{{ total_departments }}</div><div class="stat-label">部门总数</div></div></div>
+    <div class="stat-card"><div class="stat-icon">📦</div><div class="stat-info"><div class="stat-value">{{ total_assets }}</div><div class="stat-label">资产总数</div></div></div>
+</div>
+
+<!-- 工具条：新增 + 模式切换 -->
+<div class="toolbar">
+    {% if user|has_perm:'manage_org' %}
+    <a class="btn" href="{% url 'department_create' %}?mode={{ mode }}">＋ 新增顶级部门</a>
+    {% endif %}
+</div>
+
+<!-- 展现模式切换 -->
+<div class="view-tabs">
+    <a class="tab {% if mode != 'tree' %}active{% endif %}" href="{% url 'org' %}?mode=list">📋 列表模式</a>
+    <a class="tab {% if mode == 'tree' %}active{% endif %}" href="{% url 'org' %}?mode=tree">🌳 树状图</a>
+</div>
+
+{% if mode == 'tree' %}
+<div class="card">
+    <div class="card-title">组织架构树状图（鼠标悬停节点可进行增删改）</div>
+    {% if tree_roots %}
+    <ul class="tree">
+        {% for node in tree_roots %}{% include 'org/_node.html' %}{% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty">暂无部门，请先创建部门。</div>
+    {% endif %}
+</div>
+{% else %}
+<div class="card">
+    <div class="card-title">部门列表（共 {{ departments|length }} 个）</div>
+    {% if departments %}
+    <table class="table">
+        <thead>
+            <tr><th>部门名称</th><th>负责人</th><th>描述</th><th>资产数量</th><th>创建时间</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+            {% for d in departments %}
+            <tr>
+                <td>{{ d.name }}</td>
+                <td>{{ d.manager|default:'—' }}</td>
+                <td>{{ d.description|default:'—' }}</td>
+                <td><span class="badge">{{ d.subtree_count }} 台</span></td>
+                <td>{{ d.created_at|date:'Y-m-d' }}</td>
+                <td>
+                    {% if user|has_perm:'manage_org' %}
+                    <div class="col-actions">
+                        <a class="btn btn-sm" href="{% url 'department_update' d.pk %}?mode=list">编辑</a>
+                        <form method="post" action="{% url 'department_delete' d.pk %}" id="del-dept-{{ d.pk }}"
+                              onsubmit="return confirmAction('确认删除部门「{{ d.name }}」？', 'del-dept-{{ d.pk }}');">
+                            {% csrf_token %}<input type="hidden" name="mode" value="list">
+                            <button class="btn btn-sm btn-danger btn-outline-danger" type="submit">删除</button>
+                        </form>
+                    </div>
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty">暂无部门，请先创建部门。</div>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

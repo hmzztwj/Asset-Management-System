@@ -1,0 +1,32 @@
+# ---- Python / Django ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ---- 数据库（含真实业务台账，禁止提交公开仓库）----
+db.sqlite3
+db.sqlite3-journal
+
+# ---- 真实数据源（同样含敏感台账，不提交）----
+实际数据/
+*.xlsx
+!templates/**/*.xlsx
+
+# ---- 本地运行产物 / 日志 ----
+*.log
+.DS_Store
+Thumbs.db
+
+# ---- 编辑器 / 系统临时文件 ----
+*.swp
+*~
+~$*
+
+# ---- 本工作区记忆（.workbuddy）----
+.workbuddy/
+
+# ---- 备份目录（若误置于项目内也不入库）----
+*backup*/

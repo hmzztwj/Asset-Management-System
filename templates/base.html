@@ -1,0 +1,316 @@
+{% load static %}
+{% load app_filters %}
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>资产管理系统 - {{ page_title }}</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-icon">📦</div>
+            <div class="brand-text">
+                <div class="brand-name">资产管理系统</div>
+                <div class="brand-sub">Asset Manager</div>
+            </div>
+        </div>
+        <nav class="nav">
+            {% if user.is_authenticated %}
+            <a class="nav-item {% if active == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}">
+                <span class="nav-icon">📊</span>数据总览
+            </a>
+            <div class="nav-group">业务模块</div>
+            {% if user.is_superuser or user|has_perm:'view_assets' %}
+            <a class="nav-item {% if active == 'library' %}active{% endif %}" href="{% url 'library' %}">
+                <span class="nav-icon">🗃️</span>资产库
+            </a>
+            {% endif %}
+            {% if user.is_superuser or user|has_perm:'view_org' %}
+            <a class="nav-item {% if active == 'org' %}active{% endif %}" href="{% url 'org' %}">
+                <span class="nav-icon">🏢</span>组织架构
+            </a>
+            {% endif %}
+            {% if user.is_superuser or user|has_perm:'view_requisition' %}
+            <a class="nav-item {% if active == 'requisition' %}active{% endif %}" href="{% url 'requisition' %}">
+                <span class="nav-icon">📤</span>资产领用
+            </a>
+            {% endif %}
+            {% if user.is_superuser or user|has_perm:'view_change' %}
+            <a class="nav-item {% if active == 'change' %}active{% endif %}" href="{% url 'change' %}">
+                <span class="nav-icon">🔄</span>资产变更
+            </a>
+            {% endif %}
+            {% if user.is_superuser or user|has_perm:'manage_users' %}
+            <div class="nav-group">系统管理</div>
+            <a class="nav-item {% if active == 'users' %}active{% endif %}" href="{% url 'user_list' %}">
+                <span class="nav-icon">👥</span>用户管理
+            </a>
+            <a class="nav-item {% if active == 'roles' %}active{% endif %}" href="{% url 'role_list' %}">
+                <span class="nav-icon">🛡️</span>角色管理
+            </a>
+            {% endif %}
+            {% endif %}
+        </nav>
+        <div class="sidebar-footer">
+            <a href="/admin/" target="_blank">⚙️ 后台管理</a>
+        </div>
+    </aside>
+
+    <main class="main">
+        <header class="topbar">
+            <div class="page-title">{{ page_title }}</div>
+            <div class="topbar-right">
+                <span class="date-badge" id="today"></span>
+                <div class="user-menu">
+                    <div class="user-dropdown">
+                        <button type="button" class="user-trigger" id="user-trigger">
+                            <span class="user-avatar">{{ user.username|slice:':1'|upper }}</span>
+                            <span class="user-name">{{ user.username }}</span>
+                            <span class="dd-caret">▾</span>
+                        </button>
+                        <div class="user-dropdown-menu" id="user-menu">
+                            <a class="dd-item" href="{% url 'password_change' %}"><span class="dd-icon">🔑</span>修改密码</a>
+                            <form method="post" action="{% url 'logout' %}">
+                                {% csrf_token %}
+                                <button class="dd-item" type="submit"><span class="dd-icon">🚪</span>退出登录</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="content">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+</div>
+
+<div id="toast-container" class="toast-container"></div>
+
+<script>
+document.getElementById('today').textContent = new Date().toLocaleDateString(
+    'zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }
+);
+
+// 右上角头像下拉
+(function () {
+    const trigger = document.getElementById('user-trigger');
+    const menu = document.getElementById('user-menu');
+    if (trigger && menu) {
+        trigger.addEventListener('click', function (e) { e.stopPropagation(); menu.classList.toggle('open'); });
+        document.addEventListener('click', function (e) {
+            if (!menu.contains(e.target)) menu.classList.remove('open');
+        });
+        menu.querySelectorAll('a, button').forEach(function (item) {
+            item.addEventListener('click', function () { menu.classList.remove('open'); });
+        });
+    }
+})();
+
+// 把 Django messages 渲染成右上角 Toast 并自动消失
+(function () {
+    const container = document.getElementById('toast-container');
+    const msgs = {{ messages_json|default:'[]'|safe }};
+    const typeMap = { success: 'success', error: 'error', warning: 'warning', info: 'info' };
+    msgs.forEach(function (m) {
+        const el = document.createElement('div');
+        el.className = 'toast toast-' + (typeMap[m.level] || 'info');
+        el.textContent = m.message;
+        container.appendChild(el);
+        setTimeout(function () {
+            el.classList.add('toast-out');
+            setTimeout(function () { el.remove(); }, 300);
+        }, 3400);
+    });
+})();
+
+// 统一的二次确认弹窗
+window.confirmAction = function (msg, form) {
+    const modal = document.getElementById('confirm-modal');
+    if (modal) {
+        document.getElementById('confirm-text').textContent = msg || '确认执行该操作吗？';
+        modal.dataset.form = '#' + form;
+        modal.classList.add('open');
+        return false;
+    }
+    return window.confirm(msg);
+};
+function closeConfirm() {
+    const modal = document.getElementById('confirm-modal');
+    if (modal) modal.classList.remove('open');
+}
+function doConfirm() {
+    const modal = document.getElementById('confirm-modal');
+    if (modal && modal.dataset.form) {
+        const f = document.querySelector(modal.dataset.form);
+        if (f) f.submit();
+    }
+    closeConfirm();
+}
+
+// 固定尺寸的可搜索下拉：点击后始终在下方展开，输入编码按相似度排序
+function initAssetPick(el, options, onSelect) {
+    const box = el.querySelector('.ap-box');
+    const text = el.querySelector('.ap-text');
+    const hidden = el.querySelector('.ap-value');
+    const panel = el.querySelector('.ap-panel');
+    const search = el.querySelector('.ap-search');
+    const list = el.querySelector('.ap-list');
+    let selected = null;
+
+    function similarity(a, b) {
+        a = String(a).toLowerCase(); b = String(b).toLowerCase();
+        if (!b) return 0;
+        if (a === b) return 100;
+        if (a.startsWith(b)) return 90 - Math.min(40, a.length - b.length);
+        if (a.includes(b)) return 70 - Math.min(30, a.indexOf(b));
+        let i = 0, j = 0, hit = 0;
+        while (i < a.length && j < b.length) { if (a[i] === b[j]) { hit++; j++; } i++; }
+        return (j === b.length) ? 40 + hit * 2 : 0;
+    }
+    function score(o, q) { return Math.max(similarity(o.asset_id, q), similarity(o.name, q) * 0.85); }
+
+    function render() {
+        const q = search.value.trim();
+        let items = options;
+        if (q) {
+            items = options.map(function (o) { return { o: o, s: score(o, q) }; })
+                .filter(function (x) { return x.s > 0; })
+                .sort(function (a, b) { return b.s - a.s; })
+                .map(function (x) { return x.o; });
+        }
+        if (!items.length) {
+            list.innerHTML = '<div class="ap-empty">无匹配项</div>';
+        } else {
+            list.innerHTML = items.map(function (o) {
+                return '<div class="ap-option" data-id="' + o.id + '">' +
+                    '<span class="ap-id">' + o.asset_id + '</span>' +
+                    '<span class="ap-name">' + o.name + '</span>' +
+                    '<span class="ap-status">' + (o.status || '') + '</span></div>';
+            }).join('');
+        }
+        list.querySelectorAll('.ap-option').forEach(function (opt) {
+            opt.addEventListener('click', function () {
+                const id = opt.getAttribute('data-id');
+                const o = options.find(function (x) { return String(x.id) === String(id); });
+                if (o) {
+                    selected = o;
+                    hidden.value = o.id;
+                    text.textContent = o.asset_id + ' · ' + o.name + (o.status ? '（' + o.status + '）' : '');
+                    text.classList.remove('placeholder');
+                    if (typeof onSelect === 'function') onSelect(o);
+                }
+                close();
+            });
+        });
+    }
+    function open() { panel.classList.add('open'); render(); search.focus(); }
+    function close() { panel.classList.remove('open'); }
+
+    box.addEventListener('click', function () {
+        if (panel.classList.contains('open')) { close(); } else { open(); }
+    });
+    search.addEventListener('input', render);
+    document.addEventListener('click', function (e) { if (!el.contains(e.target)) close(); });
+
+    // 供外部读取当前值
+    el._getValue = function () { return hidden.value; };
+}
+
+// 编辑时按 hidden 初始值预填显示文本
+function prefillPick(el, options, labelFn) {
+    const hidden = el.querySelector('.ap-value');
+    const text = el.querySelector('.ap-text');
+    if (hidden.value) {
+        const o = options.find(function (x) { return String(x.id) === String(hidden.value); });
+        if (o) { text.textContent = labelFn(o); text.classList.remove('placeholder'); }
+    }
+}
+
+// 通用固定尺寸下拉（部门/类别/状态/类型等）。options: [{id, text, sub?}]
+function initPick(el, options, onSelect) {
+    const box = el.querySelector('.ap-box');
+    const text = el.querySelector('.ap-text');
+    const hidden = el.querySelector('.ap-value');
+    const panel = el.querySelector('.ap-panel');
+    const search = el.querySelector('.ap-search');
+    const list = el.querySelector('.ap-list');
+
+    function similarity(a, b) {
+        a = String(a).toLowerCase(); b = String(b).toLowerCase();
+        if (!b) return 0;
+        if (a === b) return 100;
+        if (a.startsWith(b)) return 90 - Math.min(40, a.length - b.length);
+        if (a.includes(b)) return 70 - Math.min(30, a.indexOf(b));
+        let i = 0, j = 0, hit = 0;
+        while (i < a.length && j < b.length) { if (a[i] === b[j]) { hit++; j++; } i++; }
+        return (j === b.length) ? 40 + hit * 2 : 0;
+    }
+    function score(o, q) { return Math.max(similarity(o.text, q), similarity(o.sub || '', q) * 0.8); }
+
+    function label(o) { return o.sub ? (o.text + '（' + o.sub + '）') : o.text; }
+
+    function render() {
+        const q = search.value.trim();
+        let items = options;
+        if (q) {
+            items = options.map(function (o) { return { o: o, s: score(o, q) }; })
+                .filter(function (x) { return x.s > 0; })
+                .sort(function (a, b) { return b.s - a.s; })
+                .map(function (x) { return x.o; });
+        }
+        if (!items.length) {
+            list.innerHTML = '<div class="ap-empty">无匹配项</div>';
+        } else {
+            list.innerHTML = items.map(function (o) {
+                return '<div class="ap-option" data-id="' + o.id + '">' +
+                    '<span class="ap-name">' + label(o) + '</span></div>';
+            }).join('');
+        }
+        list.querySelectorAll('.ap-option').forEach(function (opt) {
+            opt.addEventListener('click', function () {
+                const id = opt.getAttribute('data-id');
+                const o = options.find(function (x) { return String(x.id) === String(id); });
+                if (o) {
+                    hidden.value = o.id;
+                    text.textContent = label(o);
+                    text.classList.remove('placeholder');
+                    if (typeof onSelect === 'function') onSelect(o);
+                }
+                close();
+            });
+        });
+    }
+    function open() { panel.classList.add('open'); render(); search.focus(); }
+    function close() { panel.classList.remove('open'); }
+
+    box.addEventListener('click', function () {
+        if (panel.classList.contains('open')) { close(); } else { open(); }
+    });
+    search.addEventListener('input', render);
+    document.addEventListener('click', function (e) { if (!el.contains(e.target)) close(); });
+    el._getValue = function () { return hidden.value; };
+}
+</script>
+
+<!-- 二次确认弹窗 -->
+<div id="confirm-modal" class="confirm-mask">
+    <div class="confirm-box">
+        <div class="confirm-icon">⚠️</div>
+        <div class="confirm-title">操作确认</div>
+        <div id="confirm-text" class="confirm-text">确认执行该操作吗？</div>
+        <div class="confirm-actions">
+            <button class="btn btn-outline" onclick="closeConfirm()">取消</button>
+            <button class="btn btn-danger" onclick="doConfirm()">确定</button>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

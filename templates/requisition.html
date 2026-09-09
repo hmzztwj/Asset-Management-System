@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+{% load app_filters %}
+{% block content %}
+<div class="stat-grid">
+    <div class="stat-card"><div class="stat-icon">📤</div><div class="stat-info"><div class="stat-value">{{ total_borrowed }}</div><div class="stat-label">未归还</div></div></div>
+    <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-info"><div class="stat-value">{{ total_returned }}</div><div class="stat-label">已归还</div></div></div>
+    <div class="stat-card"><div class="stat-icon">⚠️</div><div class="stat-info"><div class="stat-value">{{ overdue_count }}</div><div class="stat-label">已逾期</div></div></div>
+</div>
+
+{% if user|has_perm:'manage_requisition' %}
+<div class="card">
+    <div class="card-title">资产领用</div>
+    <form method="post" action="{% url 'requisition_create' %}" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        {% csrf_token %}
+        <div class="filter-group">
+            <label class="req">选择资产（输入编码，下拉按相似度排序）</label>
+            <div class="asset-pick" id="pick-asset" data-name="asset">
+                <button type="button" class="ap-box">
+                    <span class="ap-text placeholder">-- 请选择 --</span>
+                    <span class="ap-caret">▾</span>
+                </button>
+                <input type="hidden" name="asset" class="ap-value" value="">
+                <div class="ap-panel">
+                    <input type="text" class="ap-search" placeholder="输入资产编码/名称筛选" autocomplete="off">
+                    <div class="ap-list"></div>
+                </div>
+            </div>
+        </div>
+        <div class="filter-group">
+            <label class="req">领用人</label>
+            <input type="text" name="user" required placeholder="姓名">
+        </div>
+        <div class="filter-group">
+            <label class="req">领用部门</label>
+            <div class="asset-pick" id="pick-dept">
+                <button type="button" class="ap-box">
+                    <span class="ap-text placeholder">-- 请选择 --</span>
+                    <span class="ap-caret">▾</span>
+                </button>
+                <input type="hidden" name="department" class="ap-value" value="">
+                <div class="ap-panel">
+                    <input type="text" class="ap-search" placeholder="输入关键字筛选" autocomplete="off">
+                    <div class="ap-list"></div>
+                </div>
+            </div>
+        </div>
+        <div class="filter-group">
+            <label class="req">预计归还</label>
+            <input type="date" name="due_date" required>
+        </div>
+        <div class="filter-group" style="flex:1;min-width:160px;">
+            <label class="req">领用用途</label>
+            <input type="text" name="purpose" required placeholder="用途说明" style="width:100%;">
+        </div>
+        <button class="btn" type="submit">登记领用</button>
+    </form>
+</div>
+{% endif %}
+
+<div class="view-tabs">
+    <a class="tab {% if not status %}active{% endif %}" href="{% url 'requisition' %}">全部</a>
+    <a class="tab {% if status == '借出' %}active{% endif %}" href="{% url 'requisition' %}?status=借出">借出</a>
+    <a class="tab {% if status == '已归还' %}active{% endif %}" href="{% url 'requisition' %}?status=已归还">已归还</a>
+    <a class="tab {% if status == '逾期' %}active{% endif %}" href="{% url 'requisition' %}?status=逾期">逾期</a>
+</div>
+
+<div class="card">
+    <div class="card-title">领用记录（共 {{ page_obj.paginator.count }} 条）</div>
+    {% if records %}
+    <div class="table-wrap">
+    <table class="table">
+        <thead>
+            <tr><th>资产</th><th>领用人</th><th>部门</th><th>用途</th><th>领用日期</th><th>预计归还</th><th>归还日期</th><th>状态</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+            {% for r in records %}
+            <tr>
+                <td>{{ r.asset.name }} <span class="muted">{{ r.asset.asset_id }}</span></td>
+                <td>{{ r.user }}</td>
+                <td>{{ r.department.name|default:'—' }}</td>
+                <td>{{ r.purpose|default:'—' }}</td>
+                <td>{{ r.borrow_date|date:'Y-m-d' }}</td>
+                <td>{{ r.due_date|date:'Y-m-d'|default:'—' }}</td>
+                <td>{{ r.return_date|date:'Y-m-d'|default:'—' }}</td>
+                <td>
+                    {% if r.display_status == '借出' %}<span class="badge">{{ r.display_status }}</span>
+                    {% elif r.display_status == '已归还' %}<span class="badge green">{{ r.display_status }}</span>
+                    {% else %}<span class="badge red">{{ r.display_status }}</span>{% endif %}
+                </td>
+                <td>
+                    {% if user|has_perm:'manage_requisition' %}
+                    <div class="col-actions">
+                        {% if r.status == '借出' %}
+                        <form method="post" action="{% url 'requisition_return' r.pk %}" id="ret-{{ r.pk }}"
+                              onsubmit="return confirmAction('确认资产「{{ r.asset.name }}」已归还？', 'ret-{{ r.pk }}');">
+                            {% csrf_token %}
+                            <button class="btn btn-sm" type="submit">归还</button>
+                        </form>
+                        {% endif %}
+                        <a class="btn btn-sm" href="{% url 'requisition_edit' r.pk %}" title="编辑记录">编辑</a>
+                        <form method="post" action="{% url 'requisition_delete' r.pk %}" id="del-req-{{ r.pk }}"
+                              onsubmit="return confirmAction('确认删除该领用记录？', 'del-req-{{ r.pk }}');">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-danger btn-outline-danger" type="submit" title="删除记录">删除</button>
+                        </form>
+                    </div>
+                    {% else %}{% if r.status == '借出' %}<span class="muted">仅管理可归还</span>{% else %}—{% endif %}{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty">暂无领用记录。</div>
+    {% endif %}
+    {% include '_pagination.html' %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ asset_options|json_script:"asset-options" }}
+{{ department_options|json_script:"dept-options" }}
+<script>
+window.addEventListener('load', function () {
+    var assets = JSON.parse(document.getElementById('asset-options').textContent);
+    initAssetPick(document.getElementById('pick-asset'), assets);
+    prefillPick(document.getElementById('pick-asset'), assets, function (o) {
+        return o.asset_id + ' · ' + o.name + (o.status ? '（' + o.status + '）' : '');
+    });
+    var depts = JSON.parse(document.getElementById('dept-options').textContent);
+    initPick(document.getElementById('pick-dept'), depts);
+    prefillPick(document.getElementById('pick-dept'), depts, function (o) { return o.text; });
+});
+</script>
+{% endblock %}

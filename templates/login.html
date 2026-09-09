@@ -1,0 +1,66 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 资产管理系统</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body class="login-body">
+<div class="login-shell">
+    <!-- 左侧品牌区 -->
+    <div class="login-hero">
+        <div class="hero-brand">
+            <div class="hero-logo">📦</div>
+            <div class="hero-brand-text">
+                <div class="hero-title">资产管理系统</div>
+                <div class="hero-sub">Asset Management System</div>
+            </div>
+        </div>
+        <div class="hero-slogan">让每一份资产</div>
+        <div class="hero-slogan strong">都清晰可见、尽在掌握</div>
+        <p class="hero-desc">全流程资产台账、组织架构、领用与变更管理，助力企业高效运营。</p>
+        <div class="hero-features">
+            <div class="feature"><span class="feature-icon">📊</span><div><div class="feature-t">数据仪表盘</div><div class="feature-d">资产数量、价值、状态一目了然</div></div></div>
+            <div class="feature"><span class="feature-icon">🗃️</span><div><div class="feature-t">资产库管理</div><div class="feature-d">台账、导入导出、批量操作</div></div></div>
+            <div class="feature"><span class="feature-icon">🛡️</span><div><div class="feature-t">权限体系</div><div class="feature-d">角色与细粒度权限管控</div></div></div>
+        </div>
+        <div class="hero-foot">© {% now 'Y' %} 资产管理系统</div>
+    </div>
+
+    <!-- 右侧登录表单 -->
+    <div class="login-panel">
+        <div class="login-card">
+            <div class="panel-title">欢迎回来 👋</div>
+            <div class="panel-sub">请登录以开始使用资产管理系统</div>
+
+            {% if error %}
+            <div class="message error" style="display:block;">用户名或密码不正确，请重试。</div>
+            {% endif %}
+
+            <form method="post" class="auth-form">
+                {% csrf_token %}
+                <label class="auth-label">用户名</label>
+                <div class="auth-input">
+                    <span class="auth-icon">👤</span>
+                    <input type="text" name="username" autofocus required placeholder="请输入用户名" value="{{ username|default:'' }}">
+                </div>
+                <label class="auth-label">密码</label>
+                <div class="auth-input">
+                    <span class="auth-icon">🔒</span>
+                    <input type="password" name="password" required placeholder="请输入密码">
+                </div>
+                <label class="remember-row">
+                    <input type="checkbox" name="remember" value="1">
+                    <span>记住我（30 天内免登录）</span>
+                </label>
+                {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+                <button type="submit" class="btn btn-block">登 录</button>
+            </form>
+            <div class="auth-hint">演示账号：<code>admin</code> / <code>admin123</code></div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

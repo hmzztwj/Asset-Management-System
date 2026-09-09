@@ -1,0 +1,208 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<div class="page-head">
+    <h2>数据总览</h2>
+    <p class="muted">实时掌握资产分布、使用状态与领用情况。</p>
+</div>
+
+<!-- 统计卡片 -->
+<div class="stat-grid">
+    <div class="stat-card">
+        <div class="stat-icon">📦</div>
+        <div class="stat-info"><div class="stat-value">{{ total_assets }}</div><div class="stat-label">资产总数</div></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-info"><div class="stat-value">{{ in_use }}</div><div class="stat-label">在用资产</div></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">🏢</div>
+        <div class="stat-info"><div class="stat-value">{{ total_departments }}</div><div class="stat-label">部门数量</div></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">💼</div>
+        <div class="stat-info"><div class="stat-value">{{ pending_return }}</div><div class="stat-label">待归还</div></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">⚠️</div>
+        <div class="stat-info"><div class="stat-value">{{ overdue }}</div><div class="stat-label">逾期未还</div></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">💰</div>
+        <div class="stat-info"><div class="stat-value">¥{{ total_value|floatformat:0 }}</div><div class="stat-label">资产总值</div></div>
+    </div>
+</div>
+
+<!-- 主图表区：部门占比 + 部门数量 -->
+<div class="chart-grid">
+    <div class="card">
+        <div class="card-title">各部门资产数量占比</div>
+        <div class="chart-box"><canvas id="deptPie"></canvas></div>
+    </div>
+    <div class="card">
+        <div class="card-title">各部门资产数量</div>
+        <div class="chart-box"><canvas id="deptBar"></canvas></div>
+    </div>
+</div>
+
+<!-- 第二行图表：状态 + 类别 -->
+<div class="chart-grid">
+    <div class="card">
+        <div class="card-title">资产使用状态分布</div>
+        <div class="chart-box small"><canvas id="statusPie"></canvas></div>
+    </div>
+    <div class="card">
+        <div class="card-title">资产类别分布</div>
+        <div class="chart-box small"><canvas id="catBar"></canvas></div>
+    </div>
+</div>
+
+<!-- 资产总值 -->
+<div class="card">
+    <div class="card-title">各部门资产总值（元）</div>
+    <div class="chart-box tall"><canvas id="valueBar"></canvas></div>
+</div>
+
+<!-- 最近资产变动情况 -->
+<div class="card">
+    <div class="card-title">最近资产变动情况</div>
+    <div class="change-block">
+        <div class="change-block-title">📤 最近资产领用</div>
+        {% if recent_requisitions %}
+        <table class="table">
+            <thead><tr><th>资产</th><th>领用人</th><th>部门</th><th>领用日期</th><th>状态</th></tr></thead>
+            <tbody>
+                {% for r in recent_requisitions %}
+                <tr>
+                    <td>{{ r.asset.name }} <span class="muted">{{ r.asset.asset_id }}</span></td>
+                    <td>{{ r.user }}</td>
+                    <td>{{ r.department.name|default:'—' }}</td>
+                    <td>{{ r.borrow_date|date:'Y-m-d' }}</td>
+                    <td>{% if r.display_status == '逾期' %}<span class="badge red">{{ r.display_status }}</span>{% else %}<span class="badge green">{{ r.display_status }}</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}<div class="empty">暂无领用记录</div>{% endif %}
+    </div>
+    <div class="change-block">
+        <div class="change-block-title">🔄 最近资产变更</div>
+        {% if recent_changes %}
+        <table class="table">
+            <thead><tr><th>资产</th><th>类型</th><th>原因</th><th>变更后</th><th>时间</th></tr></thead>
+            <tbody>
+                {% for c in recent_changes %}
+                <tr>
+                    <td>{{ c.asset.name }} <span class="muted">{{ c.asset.asset_id }}</span></td>
+                    <td><span class="badge">{{ c.change_type }}</span></td>
+                    <td>{{ c.reason|default:'—' }}</td>
+                    <td>{{ c.new_value|default:'—' }}</td>
+                    <td>{{ c.change_date|date:'Y-m-d H:i' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}<div class="empty">暂无变更记录</div>{% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ labels|json_script:"data-labels" }}
+{{ counts|json_script:"data-counts" }}
+{{ status_labels|json_script:"data-status-labels" }}
+{{ status_values|json_script:"data-status-values" }}
+{{ category_labels|json_script:"data-cat-labels" }}
+{{ category_values|json_script:"data-cat-values" }}
+{{ value_labels|json_script:"data-value-labels" }}
+{{ value_counts|json_script:"data-value-counts" }}
+<script src="{% static 'js/chart.umd.min.js' %}"></script>
+<script>
+window.addEventListener('load', function () {
+    const labels = JSON.parse(document.getElementById('data-labels').textContent);
+    const counts = JSON.parse(document.getElementById('data-counts').textContent);
+    const statusLabels = JSON.parse(document.getElementById('data-status-labels').textContent);
+    const statusValues = JSON.parse(document.getElementById('data-status-values').textContent);
+    const catLabels = JSON.parse(document.getElementById('data-cat-labels').textContent);
+    const catValues = JSON.parse(document.getElementById('data-cat-values').textContent);
+    const valueLabels = JSON.parse(document.getElementById('data-value-labels').textContent);
+    const valueCounts = JSON.parse(document.getElementById('data-value-counts').textContent);
+
+    const palette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316'];
+    const grid = { color: '#eef1f6' };
+
+    new Chart(document.getElementById('deptPie'), {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{ data: counts, backgroundColor: palette, borderWidth: 2, borderColor: '#fff' }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: { callbacks: { label: function (t) { return t.label + ': ' + t.raw + ' 台'; } } }
+            }
+        }
+    });
+
+    new Chart(document.getElementById('deptBar'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{ label: '资产数量', data: counts, backgroundColor: '#3b82f6', borderRadius: 6 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true, grid: grid }, x: { grid: { display: false } } },
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    new Chart(document.getElementById('statusPie'), {
+        type: 'pie',
+        data: {
+            labels: statusLabels,
+            datasets: [{ data: statusValues, backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'], borderWidth: 2, borderColor: '#fff' }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom' } }
+        }
+    });
+
+    new Chart(document.getElementById('catBar'), {
+        type: 'bar',
+        data: {
+            labels: catLabels,
+            datasets: [{ label: '数量', data: catValues, backgroundColor: '#10b981', borderRadius: 6 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true, grid: grid }, x: { grid: { display: false } } },
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    new Chart(document.getElementById('valueBar'), {
+        type: 'bar',
+        data: {
+            labels: valueLabels,
+            datasets: [{ label: '资产总值', data: valueCounts, backgroundColor: '#8b5cf6', borderRadius: 6 }]
+        },
+        options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            scales: {
+                x: { beginAtZero: true, grid: grid, ticks: { callback: v => '¥' + (v/10000).toFixed(1) + '万' } },
+                y: { grid: { display: false }, ticks: { autoSkip: false } }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: t => '¥' + t.raw.toLocaleString() } }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

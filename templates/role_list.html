@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% load app_filters %}
+{% block content %}
+<div class="stat-grid">
+    <div class="stat-card"><div class="stat-icon">🛡️</div><div class="stat-info"><div class="stat-value">{{ roles|length }}</div><div class="stat-label">角色总数</div></div></div>
+    <div class="stat-card"><div class="stat-icon">🏷️</div><div class="stat-info"><div class="stat-value">{{ roles|length }}</div><div class="stat-label">自定义角色</div></div></div>
+</div>
+
+<div class="toolbar">
+    <div class="spacer"></div>
+    <a class="btn" href="{% url 'role_create' %}">＋ 新增角色</a>
+</div>
+
+<div class="card">
+    <div class="card-title">角色列表</div>
+    {% if roles %}
+    <div class="table-wrap">
+    <table class="table">
+        <thead>
+            <tr><th>角色</th><th>编码</th><th>说明</th><th>用户数</th><th>权限</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+            {% for r in roles %}
+            <tr>
+                <td>{{ r.name }}{% if r.is_system %}<span class="badge" style="margin-left:6px;">内置</span>{% endif %}</td>
+                <td><code>{{ r.code }}</code></td>
+                <td>{{ r.description|default:'—' }}</td>
+                <td><span class="badge">{{ r.profiles.count }} 人</span></td>
+                <td>
+                    {% for f,label in perm_fields %}
+                        {% if r|getattr:f %}<span class="badge gray" style="margin:2px;">{{ label }}</span>{% endif %}
+                    {% endfor %}
+                </td>
+                <td>
+                    <div class="col-actions">
+                        <a class="btn btn-sm" href="{% url 'role_update' r.pk %}">编辑</a>
+                        {% if not r.is_system %}
+                        <form method="post" action="{% url 'role_delete' r.pk %}" id="del-role-{{ r.pk }}"
+                              onsubmit="return confirmAction('确认删除角色「{{ r.name }}」？', 'del-role-{{ r.pk }}');">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-danger btn-outline-danger" type="submit">删除</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty">暂无角色。</div>
+    {% endif %}
+</div>
+{% endblock %}

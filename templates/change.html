@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+{% load app_filters %}
+{% block content %}
+{% if user|has_perm:'manage_change' %}
+<div class="card">
+    <div class="card-title">新增资产变更</div>
+    <form method="post" action="{% url 'change_create' %}" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        {% csrf_token %}
+        <div class="filter-group">
+            <label class="req">选择资产（输入编码，下拉按相似度排序）</label>
+            <div class="asset-pick" id="pick-asset" data-name="asset">
+                <button type="button" class="ap-box">
+                    <span class="ap-text placeholder">-- 请选择 --</span>
+                    <span class="ap-caret">▾</span>
+                </button>
+                <input type="hidden" name="asset" class="ap-value" value="">
+                <div class="ap-panel">
+                    <input type="text" class="ap-search" placeholder="输入资产编码/名称筛选" autocomplete="off">
+                    <div class="ap-list"></div>
+                </div>
+            </div>
+        </div>
+        <div class="filter-group">
+            <label class="req">变更类型</label>
+            <div class="asset-pick" id="pick-changetype">
+                <button type="button" class="ap-box">
+                    <span class="ap-text placeholder">-- 请选择 --</span>
+                    <span class="ap-caret">▾</span>
+                </button>
+                <input type="hidden" name="change_type" class="ap-value" value="">
+                <div class="ap-panel">
+                    <input type="text" class="ap-search" placeholder="输入关键字筛选" autocomplete="off">
+                    <div class="ap-list"></div>
+                </div>
+            </div>
+        </div>
+        <div class="filter-group">
+            <label class="req">变更原因</label>
+            <input type="text" name="reason" required placeholder="必填，如：人员调动/设备维修">
+        </div>
+        <div class="filter-group">
+            <label class="req">变更前</label>
+            <input type="text" name="old_value" required placeholder="如：研发一部/在用">
+        </div>
+        <div class="filter-group">
+            <label class="req">变更后（用于同步资产库）</label>
+            <input type="text" name="new_value" required placeholder="部门转移填新部门名，状态变更填在用/库存/借出/维修/报废">
+        </div>
+        <div class="filter-group">
+            <label class="req">经办人</label>
+            <input type="text" name="changed_by" required placeholder="姓名">
+        </div>
+        <div class="filter-group" style="flex:1;min-width:150px;">
+            <label>备注</label>
+            <input type="text" name="note" placeholder="备注" style="width:100%;">
+        </div>
+        <button class="btn" type="submit">保存变更</button>
+    </form>
+</div>
+{% endif %}
+
+<div class="view-tabs">
+    <a class="tab {% if not ctype %}active{% endif %}" href="{% url 'change' %}">全部</a>
+    {% for c in '部门转移,状态变更'|split:',' %}
+        <a class="tab {% if ctype == c %}active{% endif %}" href="{% url 'change' %}?type={{ c }}">{{ c }}</a>
+    {% endfor %}
+</div>
+
+<div class="card">
+    <div class="card-title">变更记录（共 {{ page_obj.paginator.count }} 条）</div>
+    {% if records %}
+    <div class="table-wrap">
+    <table class="table">
+        <thead>
+            <tr><th>资产</th><th>类型</th><th>变更原因</th><th>变更前</th><th>变更后</th><th>经办人</th><th>时间</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+            {% for r in records %}
+            <tr>
+                <td>{{ r.asset.name }} <span class="muted">{{ r.asset.asset_id }}</span></td>
+                <td><span class="badge">{{ r.change_type }}</span></td>
+                <td>{{ r.reason|default:'—' }}</td>
+                <td>{{ r.old_value|default:'—' }}</td>
+                <td>{{ r.new_value|default:'—' }}</td>
+                <td>{{ r.changed_by|default:'—' }}</td>
+                <td>{{ r.change_date|date:'Y-m-d H:i' }}</td>
+                <td>
+                    {% if user|has_perm:'manage_change' %}
+                    <div class="col-actions">
+                        <a class="btn btn-sm" href="{% url 'change_update' r.pk %}" title="编辑记录">编辑</a>
+                        <form method="post" action="{% url 'change_delete' r.pk %}" id="del-chg-{{ r.pk }}"
+                              onsubmit="return confirmAction('确认删除该变更记录？', 'del-chg-{{ r.pk }}');">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-danger btn-outline-danger" type="submit" title="删除记录">删除</button>
+                        </form>
+                    </div>
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty">暂无变更记录。</div>
+    {% endif %}
+    {% include '_pagination.html' %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ asset_options|json_script:"asset-options" }}
+{{ change_type_options|json_script:"changetype-options" }}
+<script>
+window.addEventListener('load', function () {
+    var assets = JSON.parse(document.getElementById('asset-options').textContent);
+    var assetPick = document.getElementById('pick-asset');
+    var typePick = document.getElementById('pick-changetype');
+    var oldValueInput = document.querySelector('input[name="old_value"]');
+
+    function currentAsset() {
+        var id = assetPick.querySelector('.ap-value').value;
+        return assets.find(function (o) { return String(o.id) === String(id); });
+    }
+    function currentType() {
+        return typePick.querySelector('.ap-value').value;
+    }
+    // 选中资产/类型后，自动把该资产的原部门(部门转移)或原状态(状态变更)填入「变更前」
+    function updateOldValue() {
+        var a = currentAsset();
+        var t = currentType();
+        if (a && oldValueInput) {
+            if (t === '部门转移') oldValueInput.value = a.department || '';
+            else if (t === '状态变更') oldValueInput.value = a.status || '';
+        }
+    }
+
+    initAssetPick(assetPick, assets, updateOldValue);
+    prefillPick(assetPick, assets, function (o) {
+        return o.asset_id + ' · ' + o.name + (o.status ? '（' + o.status + '）' : '');
+    });
+    var types = JSON.parse(document.getElementById('changetype-options').textContent);
+    initPick(typePick, types, updateOldValue);
+    prefillPick(typePick, types, function (o) { return o.text; });
+});
+</script>
+{% endblock %}

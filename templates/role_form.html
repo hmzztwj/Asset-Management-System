@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% load app_filters %}
+{% block content %}
+<div class="card">
+    <div class="card-title">{% if edit_role %}编辑角色「{{ edit_role.name }}」{% else %}新增角色{% endif %}</div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-grid">
+            <div class="form-field">
+                <label>角色名称 *</label>
+                <input type="text" name="name" required value="{{ edit_role.name|default:'' }}">
+            </div>
+            <div class="form-field">
+                <label>编码 {% if not edit_role %}*{% endif %}</label>
+                <input type="text" name="code" {% if not edit_role %}required{% else %}readonly{% endif %}
+                       value="{{ edit_role.code|default:'' }}" placeholder="如 assets_viewer">
+            </div>
+            <div class="form-field full">
+                <label>说明</label>
+                <input type="text" name="description" value="{{ edit_role.description|default:'' }}">
+            </div>
+        </div>
+
+        <div class="perm-section-title">权限设置</div>
+        <div class="perm-groups">
+            {% for group in perm_groups %}
+            <div class="perm-group">
+                <div class="perm-group-name">{{ group.title }}</div>
+                <div class="perm-checks">
+                    {% for field, label in group.items %}
+                    <label class="perm-check">
+                        <input type="checkbox" name="{{ field }}" value="1"
+                               {% if edit_role|getattr:field %}checked{% endif %}>
+                        <span>{{ label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn">保存</button>
+            <a href="{% url 'role_list' %}" class="btn btn-outline">取消</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

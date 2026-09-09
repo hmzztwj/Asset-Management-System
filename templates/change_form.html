@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% load app_filters %}
+{% block content %}
+<div class="card">
+    <div class="card-title">编辑变更记录</div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-grid">
+            <div class="form-field full">
+                <label>资产</label>
+                <input type="text" value="{{ ch.asset.asset_id }} · {{ ch.asset.name }}" readonly>
+            </div>
+            <div class="form-field">
+                <label class="req">变更类型</label>
+                <select name="change_type" required>
+                    {% for c in '部门转移,状态变更'|split:',' %}
+                        <option value="{{ c }}" {% if ch.change_type == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-field">
+                <label class="req">变更原因</label>
+                <input type="text" name="reason" required value="{{ ch.reason|default:'' }}" placeholder="如：人员调动/设备维修">
+            </div>
+            <div class="form-field">
+                <label class="req">经办人</label>
+                <input type="text" name="changed_by" required value="{{ ch.changed_by|default:'' }}">
+            </div>
+            <div class="form-field">
+                <label class="req">变更前</label>
+                <input type="text" name="old_value" required value="{{ ch.old_value|default:'' }}">
+            </div>
+            <div class="form-field">
+                <label class="req">变更后（用于同步到资产库）</label>
+                <input type="text" name="new_value" required value="{{ ch.new_value|default:'' }}" placeholder="部门转移填新部门名，状态变更填在用/库存/借出/维修/报废">
+            </div>
+            <div class="form-field full">
+                <label>备注</label>
+                <input type="text" name="note" value="{{ ch.note|default:'' }}">
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn">保存</button>
+            <a href="{% url 'change' %}" class="btn btn-outline">取消</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

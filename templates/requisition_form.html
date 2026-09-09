@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% load app_filters %}
+{% block content %}
+<div class="card">
+    <div class="card-title">编辑领用记录</div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-grid">
+            <div class="form-field full">
+                <label>资产</label>
+                <input type="text" value="{{ record.asset.asset_id }} · {{ record.asset.name }}" readonly>
+            </div>
+            <div class="form-field">
+                <label class="req">领用人</label>
+                <input type="text" name="user" required value="{{ record.user }}">
+            </div>
+            <div class="form-field">
+                <label class="req">领用部门</label>
+                <select name="department" required>
+                    <option value="">-- 请选择 --</option>
+                    {% for d in departments %}
+                        <option value="{{ d.id }}" {% if record.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-field">
+                <label>领用日期</label>
+                <input type="text" value="{{ record.borrow_date|date:'Y-m-d' }}" readonly>
+            </div>
+            <div class="form-field">
+                <label class="req">预计归还</label>
+                <input type="date" name="due_date" required value="{{ record.due_date|date:'Y-m-d'|default:'' }}">
+            </div>
+            <div class="form-field">
+                <label>归还日期</label>
+                <input type="date" name="return_date" value="{{ record.return_date|date:'Y-m-d'|default:'' }}">
+            </div>
+            <div class="form-field">
+                <label>状态</label>
+                <select name="status">
+                    {% for s in '借出,已归还'|split:',' %}
+                        <option value="{{ s }}" {% if record.status == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+                {% if record.display_status == '逾期' %}
+                <div class="muted" style="margin-top:4px">当前已逾期（超出预计归还日期），请及时办理归还。</div>
+                {% endif %}
+            </div>
+            <div class="form-field full">
+                <label class="req">领用用途</label>
+                <input type="text" name="purpose" required value="{{ record.purpose|default:'' }}">
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn">保存</button>
+            <a href="{% url 'requisition' %}" class="btn btn-outline">取消</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% load app_filters %}
+<li>
+    <div class="tree-node">
+        <span class="node-icon">🏢</span>
+        <div class="node-body">
+            <div class="node-name">{{ node.dept.name }}</div>
+            <div class="node-meta">{{ node.dept.manager|default:'—' }} · {{ node.dept.subtree_count }} 台资产</div>
+            {% if user|has_perm:'manage_org' %}
+            <div class="node-actions">
+                <a class="mini-btn" href="{% url 'department_create' %}?parent={{ node.dept.id }}&mode=tree">＋ 子部门</a>
+                <a class="mini-btn" href="{% url 'department_update' node.dept.id %}?mode=tree">修改</a>
+                <form method="post" action="{% url 'department_delete' node.dept.id %}" id="del-tree-{{ node.dept.id }}"
+                      onsubmit="return confirmAction('确认删除部门「{{ node.dept.name }}」？', 'del-tree-{{ node.dept.id }}');">
+                    {% csrf_token %}<input type="hidden" name="mode" value="tree">
+                    <button class="mini-btn danger" type="submit">删除</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% if node.children %}
+    <ul>
+        {% for child in node.children %}{% include 'org/_node.html' with node=child %}{% endfor %}
+    </ul>
+    {% endif %}
+</li>

@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="stat-grid">
+    <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-info"><div class="stat-value">{{ total_users }}</div><div class="stat-label">用户总数</div></div></div>
+    <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-info"><div class="stat-value">{{ active_users }}</div><div class="stat-label">启用中</div></div></div>
+    <div class="stat-card"><div class="stat-icon">🛡️</div><div class="stat-info"><div class="stat-value">{{ admin_count }}</div><div class="stat-label">管理员</div></div></div>
+</div>
+
+<div class="toolbar">
+    <div class="spacer"></div>
+    <a class="btn" href="{% url 'user_create' %}">＋ 新增用户</a>
+</div>
+
+<div class="card">
+    <div class="card-title">用户列表（共 {{ users|length }} 个）</div>
+    {% if users %}
+    <div class="table-wrap">
+    <table class="table">
+        <thead>
+            <tr><th>用户名</th><th>姓名</th><th>邮箱</th><th>角色</th><th>状态</th><th>最近登录</th><th>创建时间</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+            {% for u in users %}
+            <tr>
+                <td>{{ u.username }}</td>
+                <td>{{ u.first_name|default:u.username }}</td>
+                <td>{{ u.email|default:'—' }}</td>
+                <td>
+                    {% with r=u.profile.role %}
+                        {% if r.code == 'super_admin' %}<span class="badge red">{{ r.name }}</span>
+                        {% elif r.code == 'admin' %}<span class="badge amber">{{ r.name }}</span>
+                        {% elif r %}<span class="badge gray">{{ r.name }}</span>
+                        {% else %}<span class="badge gray">未分配</span>{% endif %}
+                    {% endwith %}
+                </td>
+                <td>
+                    {% if u.is_active %}<span class="badge green">启用</span>
+                    {% else %}<span class="badge gray">停用</span>{% endif %}
+                </td>
+                <td>{{ u.last_login|date:'Y-m-d H:i'|default:'—' }}</td>
+                <td>{{ u.date_joined|date:'Y-m-d' }}</td>
+                <td>
+                    <div class="col-actions">
+                        <a class="btn btn-sm" href="{% url 'user_update' u.pk %}">编辑</a>
+                        {% if u != request.user and not u.is_superuser %}
+                        <form method="post" action="{% url 'user_delete' u.pk %}" id="del-user-{{ u.pk }}"
+                              onsubmit="return confirmAction('确认删除用户「{{ u.username }}」？', 'del-user-{{ u.pk }}');">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-danger btn-outline-danger" type="submit">删除</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty">暂无用户。</div>
+    {% endif %}
+</div>
+{% endblock %}

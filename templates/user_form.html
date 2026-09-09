@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+    <div class="card-title">{% if edit_user %}编辑用户「{{ edit_user.username }}」{% else %}新增用户{% endif %}</div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-grid">
+            <div class="form-field">
+                <label>用户名 {% if not edit_user %}*{% endif %}</label>
+                <input type="text" name="username" {% if not edit_user %}required{% else %}readonly{% endif %}
+                       value="{{ edit_user.username|default:'' }}">
+            </div>
+            <div class="form-field">
+                <label>{% if edit_user %}重置密码（留空则不修改）{% else %}密码 *{% endif %}</label>
+                <input type="password" name="password" {% if not edit_user %}required{% endif %}
+                       placeholder="{% if edit_user %}输入新密码{% else %}初始密码{% endif %}">
+            </div>
+            <div class="form-field">
+                <label>姓名</label>
+                <input type="text" name="first_name" value="{{ edit_user.first_name|default:'' }}">
+            </div>
+            <div class="form-field">
+                <label>邮箱</label>
+                <input type="email" name="email" value="{{ edit_user.email|default:'' }}">
+            </div>
+            <div class="form-field">
+                <label>角色</label>
+                <select name="role">
+                    <option value="">-- 未分配 --</option>
+                    {% for r in roles %}
+                        <option value="{{ r.id }}"
+                            {% if edit_user and edit_user.profile.role_id == r.id %}selected{% endif %}>
+                            {{ r.name }}{% if r.is_system %}（内置）{% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% if edit_user %}
+            <div class="form-field">
+                <label>状态</label>
+                <label class="remember-row" style="padding-top:9px;">
+                    <input type="checkbox" name="is_active" value="1" {% if edit_user.is_active %}checked{% endif %}>
+                    <span>启用该账号</span>
+                </label>
+            </div>
+            {% endif %}
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn">保存</button>
+            <a href="{% url 'user_list' %}" class="btn btn-outline">取消</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

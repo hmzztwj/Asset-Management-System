@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+    <div class="card-title">通过 Excel 导入资产</div>
+    <p class="muted" style="margin-bottom:16px;">
+        请先下载模板，按模板格式填写后上传（支持 .xlsx / .xls）。
+        已存在的「资产编号」会自动跳过；类别/状态无效时会自动修正为默认值。
+    </p>
+    <div class="toolbar" style="margin-bottom:18px;">
+        <a class="btn btn-outline" href="{% url 'asset_import_template' %}">⬇ 下载导入模板</a>
+    </div>
+    <form method="post" enctype="multipart/form-data" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+        {% csrf_token %}
+        <div class="filter-group">
+            <label>选择 Excel 文件</label>
+            <input type="file" name="file" accept=".xlsx,.xls" required>
+        </div>
+        <button class="btn" type="submit">导入</button>
+        <a class="btn btn-outline" href="{% url 'library' %}">返回资产库</a>
+    </form>
+</div>
+
+{% if result %}
+<div class="card">
+    <div class="card-title">导入结果</div>
+    <div class="stat-grid">
+        <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-info"><div class="stat-value">{{ result.imported }}</div><div class="stat-label">成功导入</div></div></div>
+        <div class="stat-card"><div class="stat-icon">⏭️</div><div class="stat-info"><div class="stat-value">{{ result.skipped }}</div><div class="stat-label">跳过(编号已存在)</div></div></div>
+        <div class="stat-card"><div class="stat-icon">⚠️</div><div class="stat-info"><div class="stat-value">{{ result.warnings|length }}</div><div class="stat-label">提示</div></div></div>
+    </div>
+    {% if result.warnings %}
+    <table class="table">
+        <thead><tr><th>提示信息</th></tr></thead>
+        <tbody>
+            {% for w in result.warnings %}<tr><td>{{ w }}</td></tr>{% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty">无警告，全部正常。</div>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

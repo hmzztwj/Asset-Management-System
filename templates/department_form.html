@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+    <div class="card-title">{% if is_edit %}编辑部门{% else %}新增部门{% endif %}</div>
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="mode" value="{{ mode }}">
+        <div class="form-grid">
+            <div class="form-field">
+                <label>部门名称 *</label>
+                <input type="text" name="name" required value="{{ department.name|default:'' }}">
+            </div>
+            <div class="form-field">
+                <label>上级部门</label>
+                <select name="parent">
+                    <option value="">无（顶级部门）</option>
+                    {% for d in departments %}
+                        {% if not is_edit or d.id != department.id %}
+                            <option value="{{ d.id }}"
+                                {% if is_edit and department.parent_id == d.id %}selected{% endif %}
+                                {% if not is_edit and preset_parent == d.id %}selected{% endif %}>
+                                {{ d.name }}
+                            </option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-field">
+                <label>负责人</label>
+                <input type="text" name="manager" value="{{ department.manager|default:'' }}">
+            </div>
+            <div class="form-field">
+                <label>部门描述</label>
+                <input type="text" name="description" value="{{ department.description|default:'' }}">
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn">保存</button>
+            <a href="{% url 'org' %}?mode={{ mode }}" class="btn btn-outline">取消</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
