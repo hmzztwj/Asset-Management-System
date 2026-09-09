@@ -1,6 +1,7 @@
 """
 Django settings for the asset management system.
 """
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -63,7 +64,9 @@ SESSION_COOKIE_AGE = 60 * 60 * 24 * 30
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        # 默认使用项目根目录的 db.sqlite3；
+        # 可通过环境变量 ASSETS_DB_PATH 覆盖（例如生成/使用独立的演示库，避免触碰真实库）
+        'NAME': os.environ.get('ASSETS_DB_PATH', str(BASE_DIR / 'db.sqlite3')),
     }
 }
 
