@@ -11,6 +11,12 @@
 <div class="login-shell">
     <!-- 左侧品牌区 -->
     <div class="login-hero">
+        <div class="hero-floats" aria-hidden="true">
+            <i class="f1">📦</i>
+            <i class="f2">🗃️</i>
+            <i class="f3">🛡️</i>
+            <i class="f4">📊</i>
+        </div>
         <div class="hero-brand">
             <div class="hero-logo">📦</div>
             <div class="hero-brand-text">
@@ -32,8 +38,11 @@
     <!-- 右侧登录表单 -->
     <div class="login-panel">
         <div class="login-card">
-            <div class="panel-title">欢迎回来 👋</div>
-            <div class="panel-sub">请登录以开始使用资产管理系统</div>
+            <div class="login-card-head">
+                <div class="panel-badge">登录</div>
+                <div class="panel-title">欢迎回来</div>
+                <div class="panel-sub">请登录以开始使用资产管理系统</div>
+            </div>
 
             {% if error %}
             <div class="message error" style="display:block;">用户名或密码不正确，请重试。</div>
@@ -58,7 +67,7 @@
                 {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
                 <button type="submit" class="btn btn-block">登 录</button>
             </form>
-            <div class="auth-hint">演示账号：<code>admin</code> / <code>admin123</code></div>
+            <!-- <div class="auth-hint">演示账号：<code>admin</code> / <code>admin123</code></div> -->
         </div>
     </div>
 </div>

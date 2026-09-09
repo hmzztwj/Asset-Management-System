@@ -351,67 +351,129 @@ table.actions { display: flex; gap: 8px; }
 
 /* ---------- 新版登录页（左右分栏） ---------- */
 .login-body {
-    min-height: 100vh; background: #eef1f6; margin: 0; padding: 0;
+    min-height: 100vh; margin: 0; padding: 28px;
+    background:
+        radial-gradient(1100px 700px at 12% -10%, rgba(59,130,246,.12), transparent 60%),
+        radial-gradient(900px 600px at 105% 110%, rgba(16,185,129,.10), transparent 55%),
+        linear-gradient(160deg, #eef2f9 0%, #e7ecf6 100%);
     display: flex; align-items: center; justify-content: center;
 }
 .login-shell {
-    display: flex; width: 100%; min-height: 100vh;
-    max-width: 1280px; box-shadow: 0 30px 80px rgba(0,0,0,.18);
+    display: flex; width: 100%; min-height: calc(100vh - 56px);
+    max-width: 1280px; border-radius: 24px; overflow: hidden;
+    box-shadow: 0 30px 80px rgba(2, 12, 40, .22), 0 4px 18px rgba(2, 12, 40, .06);
 }
 .login-hero {
-    flex: 1.15; color: #fff; padding: 56px 52px;
+    position: relative; flex: 1.15; color: #fff; padding: 56px 52px; overflow: hidden;
     background:
-        radial-gradient(circle at 20% 20%, rgba(59,130,246,.5), transparent 45%),
-        radial-gradient(circle at 80% 10%, rgba(6,182,212,.4), transparent 45%),
-        linear-gradient(150deg, #0f172a 0%, #1e3a8a 55%, #2563eb 100%);
+        radial-gradient(circle at 18% 18%, rgba(59,130,246,.55), transparent 42%),
+        radial-gradient(circle at 85% 6%, rgba(34,211,238,.38), transparent 40%),
+        radial-gradient(circle at 78% 95%, rgba(139,92,246,.3), transparent 45%),
+        linear-gradient(160deg, #0b1220 0%, #172a63 52%, #1e4fd8 110%);
     display: flex; flex-direction: column; justify-content: center;
+    isolation: isolate;
 }
-.hero-brand { display: flex; align-items: center; gap: 14px; margin-bottom: 30px; }
+/* 网格纹理层：让深色左栏不再单调 */
+.login-hero::before {
+    content: ""; position: absolute; inset: 0; z-index: -1; opacity: .10;
+    background-image:
+        linear-gradient(rgba(255,255,255,.5) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.5) 1px, transparent 1px);
+    background-size: 46px 46px;
+    mask-image: radial-gradient(circle at 30% 40%, #000, transparent 78%);
+    -webkit-mask-image: radial-gradient(circle at 30% 40%, #000, transparent 78%);
+}
+/* 漂浮的资产卡片示意（装饰性小卡） */
+.hero-floats { position: absolute; z-index: -1; inset: 0; pointer-events: none; }
+.hero-floats i {
+    position: absolute; display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,.92); border-radius: 16px;
+    background: linear-gradient(150deg, rgba(255,255,255,.16), rgba(255,255,255,.05));
+    border: 1px solid rgba(255,255,255,.22);
+    box-shadow: 0 18px 40px rgba(0,0,0,.25); backdrop-filter: blur(2px);
+    font-style: normal; animation: floatY 7s ease-in-out infinite;
+}
+.hero-floats i.f1 { width: 76px; height: 60px; font-size: 30px; top: 12%; left: 58%; animation-delay: 0s; }
+.hero-floats i.f2 { width: 64px; height: 52px; font-size: 26px; bottom: 20%; right: 8%; animation-delay: 1.6s; }
+.hero-floats i.f3 { width: 54px; height: 44px; font-size: 22px; top: 20%; right: 6%; animation-delay: .8s; }
+.hero-floats i.f4 { width: 60px; height: 48px; font-size: 24px; bottom: 10%; left: 52%; animation-delay: 2.4s; }
+@keyframes floatY { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-16px)} }
+
+.login-hero > * { position: relative; }
+.hero-brand { display: flex; align-items: center; gap: 15px; margin-bottom: 34px; }
 .hero-logo {
-    width: 58px; height: 58px; font-size: 30px; border-radius: 16px;
+    position: relative; width: 60px; height: 60px; font-size: 30px; border-radius: 16px;
     display: flex; align-items: center; justify-content: center;
-    background: linear-gradient(135deg, rgba(255,255,255,.2), rgba(255,255,255,.08));
-    border: 1px solid rgba(255,255,255,.25);
+    background: linear-gradient(135deg, rgba(255,255,255,.28), rgba(255,255,255,.1));
+    border: 1px solid rgba(255,255,255,.35);
+    box-shadow: 0 10px 26px rgba(0,0,0,.28);
 }
-.hero-title { font-size: 22px; font-weight: 800; }
-.hero-sub { font-size: 12px; opacity: .8; letter-spacing: .08em; }
-.hero-slogan { font-size: 24px; opacity: .92; line-height: 1.4; }
-.hero-slogan.strong { font-size: 34px; font-weight: 800; margin-bottom: 14px; }
-.hero-desc { font-size: 14px; opacity: .85; max-width: 360px; margin-bottom: 34px; line-height: 1.7; }
-.hero-features { display: flex; flex-direction: column; gap: 18px; }
+.hero-logo::after {
+    content: ""; position: absolute; inset: -7px; border-radius: 21px;
+    border: 1px solid rgba(255,255,255,.18);
+}
+.hero-title { font-size: 22px; font-weight: 800; letter-spacing: .02em; }
+.hero-sub { font-size: 12px; opacity: .8; letter-spacing: .08em; margin-top: 3px; }
+.hero-slogan { font-size: 26px; opacity: .96; line-height: 1.4; font-weight: 500; }
+.hero-slogan.strong { font-size: 38px; font-weight: 800; margin-bottom: 16px; letter-spacing: .01em; }
+.hero-desc { font-size: 14px; opacity: .85; max-width: 400px; margin-bottom: 36px; line-height: 1.8; }
+.hero-features { display: flex; flex-direction: column; gap: 16px; }
 .feature { display: flex; align-items: center; gap: 14px; }
 .feature-icon {
-    width: 46px; height: 46px; font-size: 22px; border-radius: 12px; flex-shrink: 0;
+    width: 48px; height: 48px; font-size: 22px; border-radius: 13px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
+    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
+    transition: background .2s, transform .2s;
 }
+.feature:hover .feature-icon { background: rgba(255,255,255,.2); transform: translateY(-2px); }
 .feature-t { font-weight: 700; font-size: 15px; }
 .feature-d { font-size: 12px; opacity: .8; margin-top: 2px; }
 .hero-foot { margin-top: auto; padding-top: 40px; font-size: 12px; opacity: .6; }
 
 .login-panel {
-    flex: 1; background: #fff; display: flex; align-items: center;
-    justify-content: center; padding: 44px; min-height: 100vh;
+    flex: 1; background:
+        radial-gradient(500px 400px at 0% 0%, rgba(59,130,246,.05), transparent 60%),
+        #ffffff; display: flex; align-items: center;
+    justify-content: center; padding: 44px; position: relative;
 }
 .login-card { width: 100%; max-width: 380px; }
-.panel-title { font-size: 26px; font-weight: 800; color: var(--text); }
+.login-card-head { margin-bottom: 6px; }
+.panel-badge {
+    display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .12em;
+    color: var(--primary-dark); background: rgba(59,130,246,.1); border-radius: 20px;
+    padding: 4px 14px; margin-bottom: 18px;
+}
+.panel-title { font-size: 28px; font-weight: 800; color: var(--text); letter-spacing: .01em; }
 .panel-sub { color: var(--muted); margin: 8px 0 26px; }
 .auth-label { font-size: 13px; font-weight: 600; margin-bottom: 6px; display: block; }
 .auth-input {
     display: flex; align-items: center; gap: 10px; margin-bottom: 18px;
     background: #f5f7fb; border: 1px solid var(--border); border-radius: 10px; padding: 0 14px;
+    transition: border-color .15s, box-shadow .15s, background .15s;
 }
 .auth-input:focus-within { border-color: var(--primary); background: #fff; box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
 .auth-icon { font-size: 16px; opacity: .6; }
 .auth-input input {
     flex: 1; border: none; outline: none; background: none; padding: 13px 0; font-size: 15px; font-family: inherit;
 }
-.login-card .btn-block { padding: 13px; font-size: 15px; margin-top: 6px; }
+.login-card .btn-block {
+    padding: 14px; font-size: 15px; margin-top: 10px; border-radius: 10px;
+    background: linear-gradient(135deg, #2563eb, #3b82f6); border: none;
+    font-weight: 700; letter-spacing: .35em; cursor: pointer; color: #fff;
+    transition: transform .12s, box-shadow .15s, filter .15s;
+}
+.login-card .btn-block:hover { filter: brightness(1.05); box-shadow: 0 8px 20px rgba(37,99,235,.35); transform: translateY(-1px); }
+.login-card .btn-block:active { transform: translateY(0); }
 
 @media (max-width: 860px) {
     .login-shell { flex-direction: column; min-height: 100vh; }
-    .login-hero { padding: 40px 28px; }
+    .login-hero { padding: 40px 28px; min-height: auto; }
     .login-panel { min-height: auto; padding: 36px 24px; }
+    .hero-floats i { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .hero-floats i { animation: none; }
 }
 
 /* ---------- 角色权限分组 ---------- */
