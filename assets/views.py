@@ -1056,6 +1056,10 @@ def user_list(request):
 @perm_required('manage_users')
 def user_create(request):
     roles = Role.objects.all()
+    ctx = {
+        'page_title': '新增用户', 'active': 'users', 'edit_user': None, 'roles': roles,
+        'form_data': {},
+    }
     if request.method == 'POST':
         username = request.POST.get('username', '').strip()
         password = request.POST.get('password', '')
@@ -1063,20 +1067,29 @@ def user_create(request):
         email = request.POST.get('email', '').strip()
         role_id = request.POST.get('role') or None
 
-        if not username or not password:
-            messages.error(request, '用户名与密码不能为空。')
+        # 失败时回显用户已填写内容
+        ctx['form_data'] = {
+            'username': username, 'password': password, 'first_name': first_name,
+            'email': email, 'role_id': role_id,
+        }
+
+        if not username:
+            messages.error(request, '用户名不能为空。')
+        elif not password:
+            messages.error(request, '密码不能为空。')
+        elif not role_id:
+            messages.error(request, '请为用户分配角色。')
         elif User.objects.filter(username=username).exists():
             messages.error(request, f'用户名 {username} 已存在。')
         else:
             user = User.objects.create_user(
                 username=username, password=password, email=email, first_name=first_name
             )
-            role_obj = Role.objects.filter(pk=role_id).first() if role_id else None
+            role_obj = Role.objects.filter(pk=role_id).first()
             _apply_role(user, role_obj)
             messages.success(request, f'用户 {username} 创建成功。')
             return redirect('user_list')
-    context = {'page_title': '新增用户', 'active': 'users', 'edit_user': None, 'roles': roles}
-    return render(request, 'user_form.html', context)
+    return render(request, 'user_form.html', ctx)
 
 
 @perm_required('manage_users')

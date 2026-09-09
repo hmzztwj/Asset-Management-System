@@ -68,8 +68,8 @@
                 <div class="user-menu">
                     <div class="user-dropdown">
                         <button type="button" class="user-trigger" id="user-trigger">
-                            <span class="user-avatar">{{ user.username|slice:':1'|upper }}</span>
-                            <span class="user-name">{{ user.username }}</span>
+                            <span class="user-avatar">{{ user.first_name|default:user.username|slice:':1'|upper }}</span>
+                            <span class="user-name">{{ user.first_name|default:user.username }}</span>
                             <span class="dd-caret">▾</span>
                         </button>
                         <div class="user-dropdown-menu" id="user-menu">

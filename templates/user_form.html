@@ -6,30 +6,41 @@
         {% csrf_token %}
         <div class="form-grid">
             <div class="form-field">
-                <label>用户名 {% if not edit_user %}*{% endif %}</label>
-                <input type="text" name="username" {% if not edit_user %}required{% else %}readonly{% endif %}
-                       value="{{ edit_user.username|default:'' }}">
+                <label class="req">用户名</label>
+                <input type="text" name="username"
+                       {% if not edit_user %}required{% else %}readonly{% endif %}
+                       value="{% if edit_user %}{{ edit_user.username }}{% else %}{{ form_data.username|default:'' }}{% endif %}"
+                       placeholder="登录账号">
             </div>
             <div class="form-field">
-                <label>{% if edit_user %}重置密码（留空则不修改）{% else %}密码 *{% endif %}</label>
+                <label class="req">{% if edit_user %}重置密码（留空则不修改）{% else %}初始密码{% endif %}</label>
                 <input type="password" name="password" {% if not edit_user %}required{% endif %}
-                       placeholder="{% if edit_user %}输入新密码{% else %}初始密码{% endif %}">
+                       value="{{ form_data.password|default:'' }}"
+                       placeholder="{% if edit_user %}留空表示不修改密码{% else %}至少 6 位{% endif %}">
             </div>
             <div class="form-field">
                 <label>姓名</label>
-                <input type="text" name="first_name" value="{{ edit_user.first_name|default:'' }}">
+                <input type="text" name="first_name"
+                       value="{% if edit_user %}{{ edit_user.first_name|default:'' }}{% else %}{{ form_data.first_name|default:'' }}{% endif %}"
+                       placeholder="显示姓名（右上角优先展示）">
             </div>
             <div class="form-field">
                 <label>邮箱</label>
-                <input type="email" name="email" value="{{ edit_user.email|default:'' }}">
+                <input type="email" name="email"
+                       value="{% if edit_user %}{{ edit_user.email|default:'' }}{% else %}{{ form_data.email|default:'' }}{% endif %}"
+                       placeholder="用于接收通知">
             </div>
             <div class="form-field">
-                <label>角色</label>
-                <select name="role">
-                    <option value="">-- 未分配 --</option>
+                <label class="req">角色</label>
+                <select name="role" {% if not edit_user %}required{% endif %}>
+                    <option value="">-- 请选择角色 --</option>
                     {% for r in roles %}
                         <option value="{{ r.id }}"
-                            {% if edit_user and edit_user.profile.role_id == r.id %}selected{% endif %}>
+                            {% if edit_user %}
+                                {% if edit_user.profile.role_id == r.id %}selected{% endif %}
+                            {% else %}
+                                {% if form_data.role_id == r.id|stringformat:'s' %}selected{% endif %}
+                            {% endif %}>
                             {{ r.name }}{% if r.is_system %}（内置）{% endif %}
                         </option>
                     {% endfor %}
