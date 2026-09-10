@@ -48,6 +48,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # 单设备登录：普通账号同一时间仅允许一台设备在线，超管不受限
+    'assets.middleware.SingleDeviceMiddleware',
     # 自动备份：按设置（每 1/3/7 天 或 每次数据库变动）触发整库备份
     'assets.middleware.AutoBackupMiddleware',
 ]

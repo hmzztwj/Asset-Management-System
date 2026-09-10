@@ -1,5 +1,6 @@
 import csv
 import datetime
+import math
 from decimal import Decimal, InvalidOperation
 from functools import wraps
 
@@ -10,6 +11,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
@@ -19,6 +21,14 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from .models import Department, Asset, Requisition, AssetChange, Role, UserProfile
 from .permissions import perm_required
+
+# 登录安全：连续输错密码锁定
+LOGIN_MAX_ATTEMPTS = 5        # 连续输错次数上限
+LOGIN_LOCK_SECONDS = 5 * 60   # 锁定时长（秒）
+
+
+def _login_fail_key(username):
+    return 'login_fail_' + (username or '').strip().lower()
 
 
 # Excel 表头别名映射（兼容不同写法）
@@ -103,27 +113,63 @@ def login_view(request):
     if request.user.is_authenticated:
         return redirect(reverse('dashboard'))
 
+    kicked = request.GET.get('kicked') == '1'
+
     if request.method == 'POST':
         username = request.POST.get('username', '').strip()
         password = request.POST.get('password', '')
         remember = request.POST.get('remember')
+
+        # —— 防爆破：连错 5 次锁定 5 分钟（按用户名计数，锁定期间即使密码正确也拒绝）——
+        fail_key = _login_fail_key(username)
+        lock_key = fail_key + '_lock'
+        locked_until = cache.get(lock_key)
+        if locked_until:
+            remain = max(1, math.ceil((locked_until - timezone.now()).total_seconds() / 60))
+            return render(request, 'login.html', {
+                'error': True,
+                'error_msg': f'密码连续输错 {LOGIN_MAX_ATTEMPTS} 次，账号已临时锁定，请约 {remain} 分钟后再试。',
+                'username': username,
+            })
+
         user = authenticate(request, username=username, password=password)
         if user is not None:
+            cache.delete(fail_key)
+            cache.delete(lock_key)
             login(request, user)
             # 记住我：30 天；否则浏览器关闭即失效
             if remember:
                 request.session.set_expiry(60 * 60 * 24 * 30)
             else:
                 request.session.set_expiry(0)
+            # —— 单设备登录：非超管只保留最近一次登录的会话，旧设备由中间件踢下线 ——
+            profile = getattr(user, 'profile', None)
+            if profile is not None and not user.is_superuser:
+                profile.session_key = request.session.session_key
+                profile.save(update_fields=['session_key'])
             nxt = request.POST.get('next') or request.GET.get('next') or '/'
             if not url_has_allowed_host_and_scheme(
                 nxt, allowed_hosts={request.get_host()}, require_https=request.is_secure()
             ):
                 nxt = '/'
             return redirect(nxt)
-        return render(request, 'login.html', {'error': True, 'username': username})
 
-    return render(request, 'login.html')
+        # 登录失败：计数并提示剩余机会
+        fails = cache.get(fail_key, 0) + 1
+        if fails >= LOGIN_MAX_ATTEMPTS:
+            cache.set(lock_key, timezone.now() + datetime.timedelta(seconds=LOGIN_LOCK_SECONDS),
+                      LOGIN_LOCK_SECONDS)
+            cache.delete(fail_key)
+            error_msg = f'密码连续输错 {LOGIN_MAX_ATTEMPTS} 次，账号已锁定 5 分钟，请稍后再试。'
+        else:
+            cache.set(fail_key, fails, LOGIN_LOCK_SECONDS)
+            error_msg = (f'用户名或密码不正确，请重试。'
+                         f'（第 {fails}/{LOGIN_MAX_ATTEMPTS} 次尝试，连续输错 {LOGIN_MAX_ATTEMPTS} 次将锁定 5 分钟）')
+        return render(request, 'login.html', {
+            'error': True, 'error_msg': error_msg, 'username': username,
+        })
+
+    return render(request, 'login.html', {'kicked': kicked})
 
 
 @login_required

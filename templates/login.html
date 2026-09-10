@@ -44,8 +44,10 @@
                 <div class="panel-sub">请登录以开始使用资产管理系统</div>
             </div>
 
-            {% if error %}
-            <div class="message error" style="display:block;">用户名或密码不正确，请重试。</div>
+            {% if kicked %}
+            <div class="message error" style="display:block;">您的账号已在其他设备登录，本机已退出。</div>
+            {% elif error %}
+            <div class="message error" style="display:block;">{{ error_msg|default:'用户名或密码不正确，请重试。' }}</div>
             {% endif %}
 
             <form method="post" class="auth-form">

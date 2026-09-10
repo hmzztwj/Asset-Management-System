@@ -14,8 +14,56 @@
 """
 import time
 
+from django.contrib.auth import logout
+from django.http import HttpResponseRedirect
+
 _DEBOUNCE = 5  # 秒：极短时间内不重复触发，避免同一操作的后续请求造成重复备份
 _last_auto = 0.0
+
+
+class SingleDeviceMiddleware:
+    """单设备登录限制：除超级管理员外，同一账号同时只允许一台设备在线。
+
+    机制：
+    - 登录时把当前会话 key 记到 UserProfile.session_key（见 views.login_view）；
+    - 每次请求校验：若当前会话与记录的不一致，说明账号已在别处登录，
+      立即注销本机并跳转到登录页；
+    - profile.session_key 为空（旧会话兼容）时自动认领当前会话，不强制重登。
+    """
+
+    _EXEMPT_PREFIXES = ('/static/', '/media/')
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self._check(request)
+        if response is not None:
+            return response
+        return self.get_response(request)
+
+    def _check(self, request):
+        user = getattr(request, 'user', None)
+        if user is None or not user.is_authenticated or user.is_superuser:
+            return None
+        path = request.path or ''
+        if path.startswith(self._EXEMPT_PREFIXES):
+            return None
+        profile = getattr(user, 'profile', None)
+        if profile is None:
+            return None
+        current = request.session.session_key
+        if not current:
+            return None
+        if not profile.session_key:
+            # 兼容旧登录：首次访问时认领当前会话
+            profile.session_key = current
+            profile.save(update_fields=['session_key'])
+            return None
+        if profile.session_key != current:
+            logout(request)
+            return HttpResponseRedirect('/login/?kicked=1')
+        return None
 
 
 class AutoBackupMiddleware:

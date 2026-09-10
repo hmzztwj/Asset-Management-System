@@ -52,6 +52,10 @@ class UserProfile(models.Model):
         '系统内置账号', default=False,
         help_text='内置账号不可删除、停用或降级，用于避免系统被锁死',
     )
+    session_key = models.CharField(
+        '当前登录会话', max_length=64, blank=True, default='',
+        help_text='记录该账号最近一次登录的会话；普通账号仅允许一台设备在线，超管不受限',
+    )
 
     class Meta:
         verbose_name = '用户档案'
