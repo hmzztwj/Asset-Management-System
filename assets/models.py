@@ -1,3 +1,5 @@
+from datetime import time as _time
+
 from django.db import models
 
 
@@ -273,3 +275,46 @@ class AssetChange(models.Model):
 
     def __str__(self):
         return f'{self.asset} {self.change_type}'
+
+
+class BackupSetting(models.Model):
+    """数据备份设置（单例）。
+
+    只用于保存"是否自动备份 / 自动备份频率 / 备份目录 / 上次备份时间"。
+    备份文件本身为整库 .sqlite3 快照，由 assets/backup.py 负责生成与管理。
+    """
+    INTERVAL_CHOICES = [
+        ('daily', '每天定时'),
+        ('3d', '每隔 3 天'),
+        ('7d', '每隔 7 天'),
+        ('on_change', '每次数据变动'),
+    ]
+
+    auto_enabled = models.BooleanField('启用自动备份', default=False)
+    interval = models.CharField('自动备份频率', max_length=20, choices=INTERVAL_CHOICES, default='daily')
+    schedule_time = models.TimeField(
+        '定时备份时间', default=_time(22, 0),
+        help_text='到达该时刻后的第一次访问（含浏览页面）即触发备份，无需写入操作',
+    )
+    backup_dir = models.CharField(
+        '备份目录', max_length=255, default='backup',
+        help_text='相对项目根目录即可（默认 backup）；也可填绝对路径',
+    )
+    last_backup_at = models.DateTimeField('上次备份时间', null=True, blank=True)
+
+    class Meta:
+        verbose_name = '数据备份'
+        verbose_name_plural = '数据备份'
+
+    def __str__(self):
+        return '数据备份设置'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1  # 强制单例
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_solo(cls):
+        """获取（或创建）唯一的设置记录。"""
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

@@ -785,6 +785,46 @@ def requisition(request):
     return render(request, 'requisition.html', context)
 
 
+@perm_required('view_requisition')
+def requisition_export(request):
+    """按当前筛选条件导出「资产领用」记录为 Excel。"""
+    status = request.GET.get('status', '')
+    all_records = list(Requisition.objects.select_related('asset', 'department').order_by('-borrow_date'))
+    if status == '逾期':
+        records = [r for r in all_records if r.display_status == '逾期']
+    elif status:
+        records = [r for r in all_records if r.status == status]
+    else:
+        records = all_records
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = '资产领用'
+    headers = ['资产编号', '资产名称', '领用人', '领用部门', '领用用途',
+               '领用日期', '预计归还', '归还日期', '状态']
+    ws.append(headers)
+    for r in records:
+        ws.append([
+            r.asset.asset_id,
+            r.asset.name,
+            r.user,
+            r.department.name if r.department else '',
+            r.purpose,
+            r.borrow_date.strftime('%Y-%m-%d') if r.borrow_date else '',
+            r.due_date.strftime('%Y-%m-%d') if r.due_date else '',
+            r.return_date.strftime('%Y-%m-%d') if r.return_date else '',
+            r.display_status,
+        ])
+    for i, w in enumerate([14, 22, 12, 14, 24, 12, 12, 12, 10], start=1):
+        ws.column_dimensions[chr(64 + i)].width = w
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="requisition_export.xlsx"'
+    wb.save(response)
+    return response
+
+
 @perm_required('manage_requisition')
 def requisition_create(request):
     if request.method == 'POST':
@@ -913,6 +953,42 @@ def change(request):
         'active': 'change',
     }
     return render(request, 'change.html', context)
+
+
+@perm_required('view_change')
+def change_export(request):
+    """按当前筛选条件导出「资产变更」记录为 Excel。"""
+    ctype = request.GET.get('type', '')
+    records = AssetChange.objects.select_related('asset').order_by('-change_date')
+    if ctype:
+        records = records.filter(change_type=ctype)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = '资产变更'
+    headers = ['资产编号', '资产名称', '变更类型', '变更原因', '变更前',
+               '变更后', '经办人', '变更时间', '备注']
+    ws.append(headers)
+    for r in records:
+        ws.append([
+            r.asset.asset_id,
+            r.asset.name,
+            r.change_type,
+            r.reason,
+            r.old_value,
+            r.new_value,
+            r.changed_by,
+            timezone.localtime(r.change_date).strftime('%Y-%m-%d %H:%M') if r.change_date else '',
+            r.note,
+        ])
+    for i, w in enumerate([14, 22, 12, 22, 16, 16, 12, 18, 22], start=1):
+        ws.column_dimensions[chr(64 + i)].width = w
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="change_export.xlsx"'
+    wb.save(response)
+    return response
 
 
 @perm_required('manage_change')

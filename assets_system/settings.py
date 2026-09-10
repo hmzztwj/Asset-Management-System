@@ -30,6 +30,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # 自动备份：按设置（每 1/3/7 天 或 每次数据库变动）触发整库备份
+    'assets.middleware.AutoBackupMiddleware',
 ]
 
 ROOT_URLCONF = 'assets_system.urls'

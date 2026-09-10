@@ -65,7 +65,10 @@
 </div>
 
 <div class="card">
-    <div class="card-title">领用记录（共 {{ page_obj.paginator.count }} 条）</div>
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+        领用记录（共 {{ page_obj.paginator.count }} 条）
+        <a class="btn btn-sm btn-outline" href="{% url 'requisition_export' %}{% if status %}?status={{ status|urlencode }}{% endif %}">⬇ 导出 Excel</a>
+    </div>
     {% if records %}
     <div class="table-wrap">
     <table class="table">

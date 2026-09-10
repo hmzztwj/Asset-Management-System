@@ -23,15 +23,24 @@
 - 领用 / 归还流程：借出时资产状态自动置为「借出」，全部归还后自动回「库存」
 - 状态只有「借出 / 已归还」两态，「逾期」由预计归还日期动态推导，不产生脏数据
 - 全流程事务保护，状态同步原子完成
+- 按当前筛选（全部/借出/已归还/逾期）一键导出 Excel
 
 ### 🔄 资产变更
 - 部门转移 / 状态变更两类变更记录，完整保留变更前后值与经办人
 - 校验严格：目标部门必须真实存在（杜绝误建部门）、状态必须合法
+- 按当前筛选（全部/部门转移/状态变更）一键导出 Excel
 
 ### 👥 用户与权限
 - 基于「角色」的权限模型（RBAC）：按模块分配查看/管理权限（资产库、组织架构、领用、变更、用户管理）
 - 新增/编辑用户独立校验（用户名/密码/角色必填），支持修改密码
 - 右上角优先显示用户姓名，无姓名时回退用户名
+
+### 💾 数据备份（Django admin）
+- 入口：侧栏「后台管理」→ 应用列表中的「数据备份」
+- **一键手动备份**：以 SQLite 在线备份 API 生成整库一致性快照，包含资产 / 部门 / 领用 / 变更 / 用户 / 角色全部数据，存入项目根 `backup/` 文件夹
+- **自动备份**：可开关；频率支持「每 1 天 / 每 3 天 / 每 7 天 / 每次数据库变动」
+- 备份文件名以日期为主（同日多次追加时间）；`backup/` 内超过 9 份自动删除最旧的
+- 备份列表支持**下载**（下载时可另存到任意位置）、**恢复**（恢复前自动另存当前库并二次确认）、删除
 
 ## 技术栈
 
@@ -101,8 +110,11 @@ python manage.py runserver 0.0.0.0:12036
 ```
 资产管理系统/
 ├── assets/                  # 核心应用（模型/视图/权限/模板标签）
-│   ├── models.py            # Role/UserProfile/Department/Asset/Requisition/AssetChange
+│   ├── models.py            # Role/UserProfile/Department/Asset/Requisition/AssetChange/BackupSetting
 │   ├── views.py             # 全部业务视图
+│   ├── admin.py             # Django admin（含「数据备份」管理页）
+│   ├── backup.py            # 备份核心：生成 / 清理 / 恢复整库快照
+│   ├── middleware.py        # 自动备份中间件
 │   ├── permissions.py       # perm_required 权限装饰器
 │   └── migrations/
 ├── assets_system/           # Django 项目配置
@@ -116,6 +128,7 @@ python manage.py runserver 0.0.0.0:12036
 ├── import_real_data.py      # 幂等增量导入脚本
 ├── seed_data.py             # 演示数据生成
 ├── ensure_admin.py          # 确保管理员账号存在
+├── backup/                  # 备份文件目录（自动创建，不入库）
 └── requirements.txt
 ```
 
@@ -126,6 +139,7 @@ python manage.py runserver 0.0.0.0:12036
 - **AssetChange** 变更记录：资产、变更类型（部门转移/状态变更）、变更前后值、经办人、原因
 - **Department** 部门：树状上下级、负责人
 - **Role / UserProfile** 角色与用户档案：细粒度布尔权限位
+- **BackupSetting** 备份设置（单例）：自动备份开关、频率、备份目录、上次备份时间
 
 ## 安全说明
 

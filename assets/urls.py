@@ -28,6 +28,7 @@ urlpatterns = [
 
     # 资产领用
     path('requisition/', views.requisition, name='requisition'),
+    path('requisition/export/', views.requisition_export, name='requisition_export'),
     path('requisition/add/', views.requisition_create, name='requisition_create'),
     path('requisition/<int:pk>/return/', views.requisition_return, name='requisition_return'),
     path('requisition/<int:pk>/edit/', views.requisition_edit, name='requisition_edit'),
@@ -35,6 +36,7 @@ urlpatterns = [
 
     # 资产变更
     path('change/', views.change, name='change'),
+    path('change/export/', views.change_export, name='change_export'),
     path('change/add/', views.change_create, name='change_create'),
     path('change/<int:pk>/edit/', views.change_update, name='change_update'),
     path('change/<int:pk>/delete/', views.change_delete, name='change_delete'),
