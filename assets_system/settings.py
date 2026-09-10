@@ -68,6 +68,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'assets.context_processors.messages_json',
+                'assets.context_processors.device_type',
             ],
         },
     },

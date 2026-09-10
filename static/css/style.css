@@ -474,6 +474,16 @@ table.actions { display: flex; gap: 8px; }
     .login-panel { min-height: auto; padding: 36px 24px; }
     .hero-floats i { display: none; }
 }
+@media (max-width: 600px) {
+    .login-body { padding: 0; }
+    .login-shell { border-radius: 0; min-height: 100vh; }
+    .login-hero { padding: 26px 22px; }
+    .hero-desc, .hero-features { display: none; }
+    .hero-slogan { font-size: 20px; }
+    .hero-slogan.strong { font-size: 28px; margin-bottom: 0; }
+    .hero-brand { margin-bottom: 20px; }
+    .login-panel { padding: 30px 22px; }
+}
 @media (prefers-reduced-motion: reduce) {
     .hero-floats i { animation: none; }
 }
@@ -599,4 +609,94 @@ table.actions { display: flex; gap: 8px; }
 .ap-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ap-status { font-size: 11px; background: #f3f4f6; color: #4b5563; padding: 2px 8px; border-radius: 12px; }
 .ap-empty { padding: 14px; color: var(--muted); text-align: center; }
+
+/* ---------- 顶栏左侧（汉堡按钮容器，桌面端直接平铺） ---------- */
+.topbar-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.menu-toggle {
+    display: none; align-items: center; justify-content: center;
+    width: 36px; height: 36px; flex: 0 0 auto;
+    background: #f3f4f6; color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; font-size: 17px; cursor: pointer; font-family: inherit;
+}
+.menu-toggle:hover { background: #e8ebf1; }
+
+/* ============================================================
+   移动端布局（手机 UA 识别 → body.mobile；窗口 ≤768px 由 JS 兜底）
+   侧栏变为抽屉 + 遮罩，内容区单列，触屏常显操作按钮
+   ============================================================ */
+body.mobile .sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0;
+    width: 264px; max-width: 82vw; flex: none;
+    transform: translateX(-100%);
+    transition: transform .22s ease;
+    height: 100vh; box-shadow: 0 10px 40px rgba(0,0,0,.35);
+}
+body.mobile .sidebar.open { transform: translateX(0); }
+body.mobile .sidebar-mask {
+    display: none; position: fixed; inset: 0; z-index: 15;
+    background: rgba(17, 24, 39, .45);
+}
+body.mobile .sidebar-mask.open { display: block; }
+body.mobile .menu-toggle { display: inline-flex; }
+body.mobile .topbar { padding: 10px 12px; }
+body.mobile .page-title { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.mobile .date-badge { display: none; }
+body.mobile .topbar-right { gap: 8px; }
+body.mobile .user-name { display: none; }
+body.mobile .content { padding: 12px; }
+body.mobile .page-head h2 { font-size: 18px; }
+
+/* 统计卡片两列，卡片更紧凑 */
+body.mobile .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+body.mobile .stat-card { padding: 12px; gap: 10px; }
+body.mobile .stat-icon { width: 38px; height: 38px; font-size: 18px; }
+body.mobile .stat-value { font-size: 20px; }
+
+/* 卡片与图表 */
+body.mobile .card { padding: 14px; margin-bottom: 14px; }
+body.mobile .chart-grid { grid-template-columns: 1fr; gap: 12px; }
+body.mobile .chart-box { height: 240px; }
+body.mobile .chart-box.tall { height: 320px; }
+
+/* 表单：两列变一列，输入控件撑满 */
+body.mobile .form-grid { grid-template-columns: 1fr; }
+body.mobile .form-field select,
+body.mobile .form-field input { width: 100%; }
+body.mobile .form-actions { flex-wrap: wrap; }
+body.mobile .form-actions .btn { flex: 1 1 auto; justify-content: center; }
+
+/* 工具条与搜索行：撑满换行 */
+body.mobile .toolbar { gap: 8px; }
+body.mobile .toolbar .filter-group { flex: 1 1 45%; }
+body.mobile .toolbar .filter-group select { width: 100%; min-width: 0; }
+body.mobile .search-row { flex-wrap: wrap; }
+body.mobile .search-row input[type=text] { flex: 1 1 100%; width: auto; min-width: 0; }
+body.mobile .search-toggle-btn { flex: 1 1 100%; width: auto; }
+
+/* 表格：容器内横向滑动 + 触屏惯性滚动 */
+body.mobile .table-wrap { -webkit-overflow-scrolling: touch; }
+body.mobile .table thead th, body.mobile .table tbody td { padding: 10px 10px; }
+
+/* 组织架构：触屏无 hover，操作按钮常显；缩进更浅 */
+body.mobile .node-actions { display: flex; }
+body.mobile .tree, body.mobile .tree ul { padding-left: 16px; }
+body.mobile .tree-node { min-width: 0; width: 100%; }
+
+/* 可搜索下拉 */
+body.mobile .asset-pick { width: 100%; }
+body.mobile .ap-id { min-width: 0; }
+
+/* 弹窗与 Toast 适配小屏 */
+body.mobile .confirm-box { width: calc(100vw - 40px); max-width: 360px; padding: 22px 18px; }
+body.mobile .confirm-actions .btn { flex: 1; justify-content: center; }
+body.mobile .toast-container { left: 12px; right: 12px; top: 12px; max-width: none; }
+
+/* 分页：两端堆叠 */
+body.mobile .pagination { flex-direction: column; align-items: stretch; }
+body.mobile .page-info { text-align: center; }
+body.mobile .page-btns { justify-content: center; }
+
+/* 视图切换标签可横向滑动 */
+body.mobile .view-tabs { display: flex; overflow-x: auto; max-width: 100%; }
+body.mobile .tab { white-space: nowrap; flex: 0 0 auto; }
 

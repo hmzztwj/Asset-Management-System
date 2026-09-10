@@ -8,9 +8,10 @@
     <title>资产管理系统 - {{ page_title }}</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
-<body>
-<div class="layout">
-    <aside class="sidebar">
+<body{% if is_mobile %} class="mobile"{% endif %}>
+<div class="layout"{% if is_mobile %} data-mobile="1"{% endif %}>
+    <div class="sidebar-mask" id="sidebar-mask"></div>
+    <aside class="sidebar" id="sidebar">
         <div class="brand">
             <div class="brand-icon">📦</div>
             <div class="brand-text">
@@ -64,7 +65,10 @@
 
     <main class="main">
         <header class="topbar">
-            <div class="page-title">{{ page_title }}</div>
+            <div class="topbar-left">
+                <button type="button" class="menu-toggle" id="menu-toggle" aria-label="打开菜单">☰</button>
+                <div class="page-title">{{ page_title }}</div>
+            </div>
             <div class="topbar-right">
                 <span class="date-badge" id="today"></span>
                 <div class="user-menu">
@@ -99,6 +103,38 @@
 document.getElementById('today').textContent = new Date().toLocaleDateString(
     'zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }
 );
+
+// 移动端布局：
+// 1) 后端按 User-Agent 识别手机 → body 已带 .mobile 类；
+// 2) 兜底：窗口宽度不足 768px 时也按移动端布局渲染（桌面缩窄窗口同样适用）。
+(function () {
+    if (window.innerWidth <= 768) document.body.classList.add('mobile');
+    window.addEventListener('resize', function () {
+        document.body.classList.toggle('mobile', window.innerWidth <= 768);
+    });
+})();
+
+// 移动端抽屉侧栏开关
+(function () {
+    const sidebar = document.getElementById('sidebar');
+    const mask = document.getElementById('sidebar-mask');
+    const btn = document.getElementById('menu-toggle');
+    function closeSidebar() {
+        sidebar.classList.remove('open');
+        mask.classList.remove('open');
+    }
+    if (btn && sidebar && mask) {
+        btn.addEventListener('click', function () {
+            sidebar.classList.toggle('open');
+            mask.classList.toggle('open', sidebar.classList.contains('open'));
+        });
+        mask.addEventListener('click', closeSidebar);
+        // 点击菜单项后自动收起抽屉
+        sidebar.querySelectorAll('.nav-item').forEach(function (a) {
+            a.addEventListener('click', closeSidebar);
+        });
+    }
+})();
 
 // 右上角头像下拉
 (function () {
