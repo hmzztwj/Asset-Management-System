@@ -29,7 +29,7 @@
         <label>类别</label>
         <select name="category" form="f">
             <option value="">全部</option>
-            {% for c in '电脑,办公家具,网络设备,软件,办公电器,其他'|split:',' %}
+            {% for c in category_options %}
                 <option value="{{ c }}" {% if filters.category == c %}selected{% endif %}>{{ c }}</option>
             {% endfor %}
         </select>

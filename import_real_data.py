@@ -33,13 +33,9 @@ def col(row, i):
     v = row[i]
     return '' if v is None else str(v).strip()
 
-STATUS_MAP = {
-    '在用': '在用', '报废': '报废',
-    '借用': '库存', '借': '库存', '员工离职': '库存',
-    '报修': '维修', '维修': '维修',
-}
-CAT_MAP = {'笔记本电脑': '电脑', '台式电脑': '电脑', '服务器': '网络设备', '网络设备': '网络设备',
-           '显示器': '电脑', '办公家具': '办公家具', '打印机': '办公电器', '办公电器': '办公电器'}
+# 类别/状态映射统一取自 models（与页面导入共用同一份别名表，避免两条路径行为不一致）
+STATUS_MAP = {**{c[0]: c[0] for c in Asset.STATUS_CHOICES}, **Asset.STATUS_ALIAS}
+CAT_MAP = {**{c[0]: c[0] for c in Asset.CATEGORY_CHOICES}, **Asset.CATEGORY_ALIAS}
 
 # 0. 默认为「增量同步」：不清空领用/变更。仅 --reset 时重建整库
 RESET = "--reset" in sys.argv

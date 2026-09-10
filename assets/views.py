@@ -264,6 +264,7 @@ def library(request):
         'page_obj': page_obj,
         'assets': page_obj.object_list,
         'departments': Department.objects.all(),
+        'category_options': [c[0] for c in Asset.CATEGORY_CHOICES],
         'page_title': '资产库',
         'active': 'library',
         'sort': sort,
@@ -500,14 +501,28 @@ def asset_import(request):
                         skipped += 1
                         continue
 
-                    category = str(val(row, 'category')).strip() or '其他'
+                    # 类别：先按原值校验，不合法再查别名映射表归一化（如 笔记本→笔记本电脑、服务器→网络设备）
+                    raw_cat = str(val(row, 'category')).strip()
+                    category = raw_cat or '其他'
                     if category not in valid_cat:
-                        warnings.append(f'{asset_id}：类别「{category}」无效，已设为「其他」')
-                        category = '其他'
-                    status = str(val(row, 'status')).strip() or '库存'
+                        mapped = Asset.CATEGORY_ALIAS.get(raw_cat)
+                        if mapped and mapped in valid_cat:
+                            warnings.append(f'{asset_id}：类别「{raw_cat}」已归一化为「{mapped}」')
+                            category = mapped
+                        else:
+                            warnings.append(f'{asset_id}：类别「{raw_cat}」无法识别，已设为「其他」')
+                            category = '其他'
+                    # 状态：同样先原值校验，再别名归一化（如 闲置→库存、待报废→报废）
+                    raw_status = str(val(row, 'status')).strip()
+                    status = raw_status or '库存'
                     if status not in valid_status:
-                        warnings.append(f'{asset_id}：状态「{status}」无效，已设为「库存」')
-                        status = '库存'
+                        mapped_s = Asset.STATUS_ALIAS.get(raw_status)
+                        if mapped_s and mapped_s in valid_status:
+                            warnings.append(f'{asset_id}：状态「{raw_status}」已归一化为「{mapped_s}」')
+                            status = mapped_s
+                        else:
+                            warnings.append(f'{asset_id}：状态「{raw_status}」无法识别，已设为「库存」')
+                            status = '库存'
 
                     dept_name = str(val(row, 'department')).strip()
                     dept = department_cache.get(dept_name) if dept_name else None
