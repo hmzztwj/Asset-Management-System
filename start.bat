@@ -7,5 +7,5 @@ cd /d "%~dp0"
 python manage.py migrate
 python ensure_admin.py
 start "" "http://127.0.0.1:12036/"
-python manage.py runserver 0.0.0.0:12036
+python manage.py runserver --insecure 0.0.0.0:12036
 pause

@@ -16,7 +16,7 @@
                 <label class="req">{% if edit_user %}重置密码（留空则不修改）{% else %}初始密码{% endif %}</label>
                 <input type="password" name="password" {% if not edit_user %}required{% endif %}
                        value="{{ form_data.password|default:'' }}"
-                       placeholder="{% if edit_user %}留空表示不修改密码{% else %}至少 6 位{% endif %}">
+                       placeholder="{% if edit_user %}留空表示不修改密码{% else %}至少 8 位，且不能是纯数字{% endif %}">
             </div>
             <div class="form-field">
                 <label>姓名</label>
@@ -33,6 +33,11 @@
             <div class="form-field">
                 <label class="req">角色</label>
                 <select name="role" {% if not edit_user %}required{% endif %}>
+                    {% if edit_user and edit_user.profile.is_builtin %}
+                        {% for r in roles %}{% if r.code == 'super_admin' %}
+                        <option value="{{ r.id }}" selected>{{ r.name }}（内置，不可更改）</option>
+                        {% endif %}{% endfor %}
+                    {% else %}
                     <option value="">-- 请选择角色 --</option>
                     {% for r in roles %}
                         <option value="{{ r.id }}"
@@ -44,15 +49,24 @@
                             {{ r.name }}{% if r.is_system %}（内置）{% endif %}
                         </option>
                     {% endfor %}
+                    {% endif %}
                 </select>
             </div>
             {% if edit_user %}
             <div class="form-field">
                 <label>状态</label>
+                {% if edit_user.profile.is_builtin %}
+                <label class="remember-row" style="padding-top:9px;">
+                    <input type="checkbox" checked disabled>
+                    <input type="hidden" name="is_active" value="1">
+                    <span>内置账号，始终启用</span>
+                </label>
+                {% else %}
                 <label class="remember-row" style="padding-top:9px;">
                     <input type="checkbox" name="is_active" value="1" {% if edit_user.is_active %}checked{% endif %}>
                     <span>启用该账号</span>
                 </label>
+                {% endif %}
             </div>
             {% endif %}
         </div>

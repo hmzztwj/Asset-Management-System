@@ -1,5 +1,6 @@
 import csv
 import datetime
+from decimal import Decimal, InvalidOperation
 from functools import wraps
 
 from openpyxl import Workbook
@@ -60,6 +61,31 @@ def _parse_date(value):
     return None
 
 
+def _parse_price(value):
+    """把价格输入解析为 Decimal：空值视为 0，非法输入返回 None。"""
+    text = str(value).strip() if value is not None else ''
+    if not text:
+        return Decimal('0')
+    try:
+        return Decimal(text)
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _check_password_strength(user, password):
+    """按 settings.AUTH_PASSWORD_VALIDATORS 校验密码强度。
+
+    通过返回 None，否则返回可直接展示的错误文案。
+    """
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+    try:
+        validate_password(password, user=user)
+        return None
+    except ValidationError as exc:
+        return '；'.join(exc.messages)
+
+
 def admin_required(view_func):
     """仅管理员(staff/superuser)可访问；否则提示并回首页。"""
     @wraps(view_func)
@@ -108,16 +134,18 @@ def password_change(request):
         confirm_password = request.POST.get('confirm_password', '')
         if not request.user.check_password(old_password):
             messages.error(request, '当前密码不正确。')
-        elif len(new_password) < 4:
-            messages.error(request, '新密码至少需要 4 位。')
         elif new_password != confirm_password:
             messages.error(request, '两次输入的新密码不一致。')
         else:
-            request.user.set_password(new_password)
-            request.user.save()
-            update_session_auth_hash(request, request.user)
-            messages.success(request, '密码修改成功。')
-            return redirect('dashboard')
+            pwd_err = _check_password_strength(request.user, new_password)
+            if pwd_err:
+                messages.error(request, f'新密码不符合要求：{pwd_err}')
+            else:
+                request.user.set_password(new_password)
+                request.user.save()
+                update_session_auth_hash(request, request.user)
+                messages.success(request, '密码修改成功。')
+                return redirect('dashboard')
     context = {'page_title': '修改密码', 'active': 'dashboard'}
     return render(request, 'password_change.html', context)
 
@@ -265,6 +293,7 @@ def library(request):
         'assets': page_obj.object_list,
         'departments': Department.objects.all(),
         'category_options': [c[0] for c in Asset.CATEGORY_CHOICES],
+        'status_options': [s[0] for s in Asset.STATUS_CHOICES],
         'page_title': '资产库',
         'active': 'library',
         'sort': sort,
@@ -332,8 +361,10 @@ def asset_create(request):
         department_id = request.POST.get('department') or None
         user = request.POST.get('user', '').strip()
         status = request.POST.get('status', '库存')
-        price = request.POST.get('price') or 0
-        purchase_date = request.POST.get('purchase_date') or None
+        price_value = _parse_price(request.POST.get('price'))
+        price = price_value if price_value is not None else 0
+        raw_date = (request.POST.get('purchase_date') or '').strip()
+        purchase_date = _parse_date(raw_date) if raw_date else None
         location = request.POST.get('location', '').strip()
 
         missing = _missing_required_asset(dict(
@@ -344,6 +375,8 @@ def asset_create(request):
             messages.error(request, '请填写必填项：' + '、'.join(missing))
         elif Asset.objects.filter(asset_id=asset_id).exists():
             messages.error(request, f'资产编号 {asset_id} 已存在。')
+        elif price_value is None:
+            messages.error(request, '资产价值必须是数字。')
         else:
             Asset.objects.create(
                 asset_id=asset_id, name=name, category=category,
@@ -387,9 +420,13 @@ def asset_update(request, pk):
         asset.department_id = request.POST.get('department') or None
         asset.user = request.POST.get('user', '').strip()
         asset.status = request.POST.get('status', asset.status)
-        asset.price = request.POST.get('price') or asset.price
-        asset.purchase_date = request.POST.get('purchase_date') or asset.purchase_date
         asset.location = request.POST.get('location', '').strip()
+        # 价格与购置日期允许被清空（原实现会保留旧值，导致"清不掉"）
+        price_value = _parse_price(request.POST.get('price'))
+        if price_value is not None:
+            asset.price = price_value
+        raw_date = (request.POST.get('purchase_date') or '').strip()
+        asset.purchase_date = _parse_date(raw_date) if raw_date else None
 
         missing = _missing_required_asset(dict(
             asset_id=asset.asset_id, name=asset.name, category=asset.category,
@@ -398,6 +435,8 @@ def asset_update(request, pk):
         ))
         if missing:
             messages.error(request, '请填写必填项：' + '、'.join(missing))
+        elif price_value is None:
+            messages.error(request, '资产价值必须是数字。')
         else:
             asset.save()
             messages.success(request, f'资产 {asset.name} 更新成功。')
@@ -1174,6 +1213,8 @@ def user_create(request):
             'email': email, 'role_id': role_id,
         }
 
+        pwd_err = _check_password_strength(None, password) if password else None
+
         if not username:
             messages.error(request, '用户名不能为空。')
         elif not password:
@@ -1182,6 +1223,8 @@ def user_create(request):
             messages.error(request, '请为用户分配角色。')
         elif User.objects.filter(username=username).exists():
             messages.error(request, f'用户名 {username} 已存在。')
+        elif pwd_err:
+            messages.error(request, f'密码不符合要求：{pwd_err}')
         else:
             user = User.objects.create_user(
                 username=username, password=password, email=email, first_name=first_name
@@ -1204,6 +1247,21 @@ def user_update(request, pk):
         is_active = request.POST.get('is_active') == '1'
         password = request.POST.get('password', '')
         role_obj = Role.objects.filter(pk=role_id).first() if role_id else None
+
+        # 重置密码时同样套用强度校验
+        if password:
+            pwd_err = _check_password_strength(user, password)
+            if pwd_err:
+                messages.error(request, f'密码不符合要求：{pwd_err}')
+                return redirect('user_list')
+
+        # 内置账号保护：不可停用、不可降级（避免系统被锁死）
+        target_profile = getattr(user, 'profile', None)
+        if target_profile is not None and target_profile.is_builtin:
+            is_active = True  # 内置账号始终启用
+            if not (role_obj and role_obj.code == 'super_admin'):
+                messages.error(request, '内置账号不可降级，必须保持「超级管理员」角色。')
+                return redirect('user_list')
 
         # 自我保护：不能停用自己、不能移除自己的用户管理权限
         if user == request.user:
@@ -1246,7 +1304,10 @@ def user_update(request, pk):
 def user_delete(request, pk):
     user = get_object_or_404(User, pk=pk)
     if request.method == 'POST':
-        if user == request.user:
+        profile = getattr(user, 'profile', None)
+        if profile is not None and profile.is_builtin:
+            messages.error(request, '内置账号不可删除。')
+        elif user == request.user:
             messages.error(request, '不能删除当前登录的账号。')
         elif user.is_superuser:
             messages.error(request, '不能删除超级管理员账号，请先将其降级。')

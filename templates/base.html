@@ -55,9 +55,11 @@
             {% endif %}
             {% endif %}
         </nav>
+        {% if user.is_staff or user.is_superuser %}
         <div class="sidebar-footer">
             <a href="/admin/">⚙️ 后台管理</a>
         </div>
+        {% endif %}
     </aside>
 
     <main class="main">
@@ -91,6 +93,7 @@
 </div>
 
 <div id="toast-container" class="toast-container"></div>
+{{ messages_json|json_script:"toast-messages" }}
 
 <script>
 document.getElementById('today').textContent = new Date().toLocaleDateString(
@@ -115,7 +118,8 @@ document.getElementById('today').textContent = new Date().toLocaleDateString(
 // 把 Django messages 渲染成右上角 Toast 并自动消失
 (function () {
     const container = document.getElementById('toast-container');
-    const msgs = {{ messages_json|default:'[]'|safe }};
+    const dataEl = document.getElementById('toast-messages');
+    const msgs = dataEl ? JSON.parse(dataEl.textContent) : [];
     const typeMap = { success: 'success', error: 'error', warning: 'warning', info: 'info' };
     msgs.forEach(function (m) {
         const el = document.createElement('div');
@@ -142,16 +146,41 @@ window.confirmAction = function (msg, form) {
 };
 function closeConfirm() {
     const modal = document.getElementById('confirm-modal');
-    if (modal) modal.classList.remove('open');
+    if (modal) {
+        modal.classList.remove('open');
+        modal._form = null;
+    }
 }
 function doConfirm() {
     const modal = document.getElementById('confirm-modal');
-    if (modal && modal.dataset.form) {
-        const f = document.querySelector(modal.dataset.form);
-        if (f) f.submit();
+    if (modal) {
+        const f = modal._form || (modal.dataset.form ? document.querySelector(modal.dataset.form) : null);
+        if (f) {
+            f.dataset.confirmed = '1';
+            f.submit();
+        }
     }
     closeConfirm();
 }
+
+// 表单二次确认：在 <form> 上加 data-confirm="提示文案" 即可。
+// 文案由模板变量经 HTML 转义后写入属性，避免把用户数据拼进 JS 字符串导致注入。
+document.addEventListener('submit', function (e) {
+    const form = e.target;
+    if (!form || form.tagName !== 'FORM') return;
+    const msg = form.getAttribute('data-confirm');
+    if (!msg || form.dataset.confirmed === '1') return;
+    e.preventDefault();
+    const modal = document.getElementById('confirm-modal');
+    if (modal) {
+        document.getElementById('confirm-text').textContent = msg;
+        modal._form = form;
+        modal.classList.add('open');
+    } else if (window.confirm(msg)) {
+        form.dataset.confirmed = '1';
+        form.submit();
+    }
+});
 
 // 固定尺寸的可搜索下拉：点击后始终在下方展开，输入编码按相似度排序
 function initAssetPick(el, options, onSelect) {
@@ -184,15 +213,29 @@ function initAssetPick(el, options, onSelect) {
                 .sort(function (a, b) { return b.s - a.s; })
                 .map(function (x) { return x.o; });
         }
+        list.innerHTML = '';
         if (!items.length) {
-            list.innerHTML = '<div class="ap-empty">无匹配项</div>';
+            const empty = document.createElement('div');
+            empty.className = 'ap-empty';
+            empty.textContent = '无匹配项';
+            list.appendChild(empty);
         } else {
-            list.innerHTML = items.map(function (o) {
-                return '<div class="ap-option" data-id="' + o.id + '">' +
-                    '<span class="ap-id">' + o.asset_id + '</span>' +
-                    '<span class="ap-name">' + o.name + '</span>' +
-                    '<span class="ap-status">' + (o.status || '') + '</span></div>';
-            }).join('');
+            items.forEach(function (o) {
+                const row = document.createElement('div');
+                row.className = 'ap-option';
+                row.dataset.id = o.id;
+                const idEl = document.createElement('span');
+                idEl.className = 'ap-id';
+                idEl.textContent = o.asset_id;
+                const nameEl = document.createElement('span');
+                nameEl.className = 'ap-name';
+                nameEl.textContent = o.name;
+                const statusEl = document.createElement('span');
+                statusEl.className = 'ap-status';
+                statusEl.textContent = o.status || '';
+                row.append(idEl, nameEl, statusEl);
+                list.appendChild(row);
+            });
         }
         list.querySelectorAll('.ap-option').forEach(function (opt) {
             opt.addEventListener('click', function () {
@@ -264,13 +307,23 @@ function initPick(el, options, onSelect) {
                 .sort(function (a, b) { return b.s - a.s; })
                 .map(function (x) { return x.o; });
         }
+        list.innerHTML = '';
         if (!items.length) {
-            list.innerHTML = '<div class="ap-empty">无匹配项</div>';
+            const empty = document.createElement('div');
+            empty.className = 'ap-empty';
+            empty.textContent = '无匹配项';
+            list.appendChild(empty);
         } else {
-            list.innerHTML = items.map(function (o) {
-                return '<div class="ap-option" data-id="' + o.id + '">' +
-                    '<span class="ap-name">' + label(o) + '</span></div>';
-            }).join('');
+            items.forEach(function (o) {
+                const row = document.createElement('div');
+                row.className = 'ap-option';
+                row.dataset.id = o.id;
+                const nameEl = document.createElement('span');
+                nameEl.className = 'ap-name';
+                nameEl.textContent = label(o);
+                row.appendChild(nameEl);
+                list.appendChild(row);
+            });
         }
         list.querySelectorAll('.ap-option').forEach(function (opt) {
             opt.addEventListener('click', function () {

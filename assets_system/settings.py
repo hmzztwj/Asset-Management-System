@@ -6,11 +6,29 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-asset-management-system-secret-key-2024'
 
-DEBUG = True
+def _env_bool(name, default=False):
+    val = os.environ.get(name)
+    if val is None:
+        return default
+    return val.strip().lower() in ('1', 'true', 'yes', 'on')
 
-ALLOWED_HOSTS = ['*']
+
+# 部署安全配置（均可用环境变量覆盖，见 README「部署与安全」）
+# SECRET_KEY：生产环境请通过 ASSETS_SECRET_KEY 设置一个随机值
+SECRET_KEY = os.environ.get(
+    'ASSETS_SECRET_KEY',
+    'django-insecure-asset-management-system-secret-key-2024',
+)
+
+# 调试开关：默认关闭，避免错误页把源码与 SQL 暴露给局域网访问者；
+# 本地排查问题时可用 ASSETS_DEBUG=1 临时打开
+DEBUG = _env_bool('ASSETS_DEBUG', False)
+
+# 允许访问的主机：默认放开（内网小团队），如需收紧用 ASSETS_ALLOWED_HOSTS 逗号分隔指定
+ALLOWED_HOSTS = [
+    h.strip() for h in os.environ.get('ASSETS_ALLOWED_HOSTS', '*').split(',') if h.strip()
+] or ['*']
 
 INSTALLED_APPS = [
     'django.contrib.admin',

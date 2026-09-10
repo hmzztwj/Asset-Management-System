@@ -36,7 +36,7 @@
                         <a class="btn btn-sm" href="{% url 'role_update' r.pk %}">编辑</a>
                         {% if not r.is_system %}
                         <form method="post" action="{% url 'role_delete' r.pk %}" id="del-role-{{ r.pk }}"
-                              onsubmit="return confirmAction('确认删除角色「{{ r.name }}」？', 'del-role-{{ r.pk }}');">
+                              data-confirm="确认删除角色「{{ r.name }}」？">
                             {% csrf_token %}
                             <button class="btn btn-sm btn-danger btn-outline-danger" type="submit">删除</button>
                         </form>

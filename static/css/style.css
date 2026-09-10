@@ -151,6 +151,7 @@ body {
 .badge.amber { background: #fffbeb; color: #b45309; }
 .badge.red { background: #fef2f2; color: #b91c1c; }
 .badge.gray { background: #f3f4f6; color: #4b5563; }
+.badge.blue { background: #eff6ff; color: #1d4ed8; }
 
 /* ---------- 工具条 / 按钮 ---------- */
 .toolbar { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }

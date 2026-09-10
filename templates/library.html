@@ -19,10 +19,9 @@
         <label>状态</label>
         <select name="status" form="f">
             <option value="">全部</option>
-            <option value="在用" {% if filters.status == '在用' %}selected{% endif %}>在用</option>
-            <option value="库存" {% if filters.status == '库存' %}selected{% endif %}>库存</option>
-            <option value="维修" {% if filters.status == '维修' %}selected{% endif %}>维修</option>
-            <option value="报废" {% if filters.status == '报废' %}selected{% endif %}>报废</option>
+            {% for s in status_options %}
+                <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
         </select>
     </div>
     <div class="filter-group">
@@ -129,7 +128,7 @@
                     <div class="col-actions">
                         <a class="btn btn-sm" href="{% url 'asset_update' a.pk %}" title="编辑资产">编辑</a>
                         <form method="post" action="{% url 'asset_delete' a.pk %}" id="del-asset-{{ a.pk }}"
-                              onsubmit="return confirmAction('确认删除资产「{{ a.name }}」？此操作不可撤销。', 'del-asset-{{ a.pk }}');">
+                              data-confirm="确认删除资产「{{ a.name }}」？此操作不可撤销。">
                             {% csrf_token %}
                             <button class="btn btn-sm btn-danger btn-outline-danger" type="submit" title="删除资产">删除</button>
                         </form>

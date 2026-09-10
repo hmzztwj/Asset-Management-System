@@ -92,7 +92,7 @@
                     <div class="col-actions">
                         <a class="btn btn-sm" href="{% url 'change_update' r.pk %}" title="编辑记录">编辑</a>
                         <form method="post" action="{% url 'change_delete' r.pk %}" id="del-chg-{{ r.pk }}"
-                              onsubmit="return confirmAction('确认删除该变更记录？', 'del-chg-{{ r.pk }}');">
+                              data-confirm="确认删除该变更记录？">
                             {% csrf_token %}
                             <button class="btn btn-sm btn-danger btn-outline-danger" type="submit" title="删除记录">删除</button>
                         </form>

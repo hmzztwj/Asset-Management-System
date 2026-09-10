@@ -2,6 +2,9 @@ import os
 from datetime import time as _time
 
 from django.contrib import admin, messages
+from django.contrib.admin.sites import NotRegistered
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.models import User
 from django.http import FileResponse, Http404
 from django.shortcuts import redirect
 from django.urls import path
@@ -143,3 +146,36 @@ class BackupSettingAdmin(admin.ModelAdmin):
                 os.remove(path)
                 messages.success(request, f'已删除备份「{name}」')
         return self._redirect()
+
+
+# Django 自带后台的用户管理同步加保护，避免从 /admin/auth/user/ 绕过删除内置账号
+try:
+    admin.site.unregister(User)
+except NotRegistered:
+    pass
+
+
+@admin.register(User)
+class ProtectedUserAdmin(BaseUserAdmin):
+    """保护内置账号：后台不允许删除（含批量删除动作）。"""
+
+    @staticmethod
+    def _is_builtin(obj):
+        return bool(getattr(getattr(obj, 'profile', None), 'is_builtin', False))
+
+    def has_delete_permission(self, request, obj=None):
+        if obj is not None and self._is_builtin(obj):
+            return False
+        return super().has_delete_permission(request, obj)
+
+    def delete_model(self, request, obj):
+        if self._is_builtin(obj):
+            self.message_user(request, '内置账号不可删除。', level=messages.WARNING)
+            return
+        super().delete_model(request, obj)
+
+    def delete_queryset(self, request, queryset):
+        builtins = queryset.filter(profile__is_builtin=True)
+        if builtins.exists():
+            self.message_user(request, '内置账号不可删除，已自动跳过。', level=messages.WARNING)
+        super().delete_queryset(request, queryset.exclude(profile__is_builtin=True))

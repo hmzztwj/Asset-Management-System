@@ -95,14 +95,14 @@
                     <div class="col-actions">
                         {% if r.status == '借出' %}
                         <form method="post" action="{% url 'requisition_return' r.pk %}" id="ret-{{ r.pk }}"
-                              onsubmit="return confirmAction('确认资产「{{ r.asset.name }}」已归还？', 'ret-{{ r.pk }}');">
+                              data-confirm="确认资产「{{ r.asset.name }}」已归还？">
                             {% csrf_token %}
                             <button class="btn btn-sm" type="submit">归还</button>
                         </form>
                         {% endif %}
                         <a class="btn btn-sm" href="{% url 'requisition_edit' r.pk %}" title="编辑记录">编辑</a>
                         <form method="post" action="{% url 'requisition_delete' r.pk %}" id="del-req-{{ r.pk }}"
-                              onsubmit="return confirmAction('确认删除该领用记录？', 'del-req-{{ r.pk }}');">
+                              data-confirm="确认删除该领用记录？">
                             {% csrf_token %}
                             <button class="btn btn-sm btn-danger btn-outline-danger" type="submit" title="删除记录">删除</button>
                         </form>

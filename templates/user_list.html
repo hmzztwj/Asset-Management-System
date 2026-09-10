@@ -22,7 +22,7 @@
         <tbody>
             {% for u in users %}
             <tr>
-                <td>{{ u.username }}</td>
+                <td>{{ u.username }}{% if u.profile.is_builtin %} <span class="badge blue">内置</span>{% endif %}</td>
                 <td>{{ u.first_name|default:u.username }}</td>
                 <td>{{ u.email|default:'—' }}</td>
                 <td>
@@ -42,9 +42,9 @@
                 <td>
                     <div class="col-actions">
                         <a class="btn btn-sm" href="{% url 'user_update' u.pk %}">编辑</a>
-                        {% if u != request.user and not u.is_superuser %}
+                        {% if u != request.user and not u.is_superuser and not u.profile.is_builtin %}
                         <form method="post" action="{% url 'user_delete' u.pk %}" id="del-user-{{ u.pk }}"
-                              onsubmit="return confirmAction('确认删除用户「{{ u.username }}」？', 'del-user-{{ u.pk }}');">
+                              data-confirm="确认删除用户「{{ u.username }}」？">
                             {% csrf_token %}
                             <button class="btn btn-sm btn-danger btn-outline-danger" type="submit">删除</button>
                         </form>

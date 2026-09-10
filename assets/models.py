@@ -48,6 +48,10 @@ class UserProfile(models.Model):
         Role, on_delete=models.PROTECT, null=True, blank=True,
         related_name='profiles', verbose_name='角色',
     )
+    is_builtin = models.BooleanField(
+        '系统内置账号', default=False,
+        help_text='内置账号不可删除、停用或降级，用于避免系统被锁死',
+    )
 
     class Meta:
         verbose_name = '用户档案'

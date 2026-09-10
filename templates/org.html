@@ -51,7 +51,7 @@
                     <div class="col-actions">
                         <a class="btn btn-sm" href="{% url 'department_update' d.pk %}?mode=list">编辑</a>
                         <form method="post" action="{% url 'department_delete' d.pk %}" id="del-dept-{{ d.pk }}"
-                              onsubmit="return confirmAction('确认删除部门「{{ d.name }}」？', 'del-dept-{{ d.pk }}');">
+                              data-confirm="确认删除部门「{{ d.name }}」？">
                             {% csrf_token %}<input type="hidden" name="mode" value="list">
                             <button class="btn btn-sm btn-danger btn-outline-danger" type="submit">删除</button>
                         </form>

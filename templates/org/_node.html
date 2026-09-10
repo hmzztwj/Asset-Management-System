@@ -10,7 +10,7 @@
                 <a class="mini-btn" href="{% url 'department_create' %}?parent={{ node.dept.id }}&mode=tree">＋ 子部门</a>
                 <a class="mini-btn" href="{% url 'department_update' node.dept.id %}?mode=tree">修改</a>
                 <form method="post" action="{% url 'department_delete' node.dept.id %}" id="del-tree-{{ node.dept.id }}"
-                      onsubmit="return confirmAction('确认删除部门「{{ node.dept.name }}」？', 'del-tree-{{ node.dept.id }}');">
+                      data-confirm="确认删除部门「{{ node.dept.name }}」？">
                     {% csrf_token %}<input type="hidden" name="mode" value="tree">
                     <button class="mini-btn danger" type="submit">删除</button>
                 </form>
