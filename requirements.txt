@@ -1,2 +1,5 @@
 Django>=5.2,<6.0
 openpyxl>=3.1,<4.0
+# 生产部署（Docker 容器内使用）
+gunicorn>=21.2,<24.0
+whitenoise>=6.6,<7.0

@@ -34,3 +34,7 @@ backup/
 *.searchtoggle_*
 *.catfix_*
 *.sched_*
+
+# ---- Docker 部署产物 ----
+data/
+staticfiles/

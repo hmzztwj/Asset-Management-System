@@ -1,0 +1,21 @@
+# 不打进镜像的内容
+.git
+.workbuddy
+data/
+backup/
+staticfiles/
+db.sqlite3
+实际数据/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.bat
+*.backup_*
+*.catfix_*
+*.sched_*
+*.searchtoggle_*
+README.md
+deploy/
+Dockerfile
+docker-compose.yml
+.dockerignore

@@ -1,0 +1,18 @@
+services:
+  assets:
+    build: .
+    image: asset-management:latest
+    container_name: asset-management
+    restart: always          # 崩溃或宿主机重启后自动拉起
+    ports:
+      - "12036:8000"         # 宿主机 12036 → 容器 8000，与原使用习惯一致
+    environment:
+      # 数据库放在挂载卷里，重建容器数据不丢
+      - ASSETS_DB_PATH=/app/data/db.sqlite3
+      # 生产环境务必改成随机长字符串（一串无规律字母数字即可）
+      - ASSETS_SECRET_KEY=please-change-me-to-a-long-random-string
+      # 局域网使用可保持 *；有域名或固定 IP 建议改成具体值，如 192.168.1.10
+      - ASSETS_ALLOWED_HOSTS=*
+    volumes:
+      - ./data:/app/data     # SQLite 数据库（把现有 db.sqlite3 拷到宿主机 ./data/ 下）
+      - ./backup:/app/backup # 自动备份目录（与页面「数据备份」设置对应）

@@ -14,6 +14,15 @@ def _env_bool(name, default=False):
     return val.strip().lower() in ('1', 'true', 'yes', 'on')
 
 
+def _module_available(name):
+    """模块是否可导入（用于可选依赖，如生产环境的 whitenoise）。"""
+    import importlib.util
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
 # 部署安全配置（均可用环境变量覆盖，见 README「部署与安全」）
 # SECRET_KEY：生产环境请通过 ASSETS_SECRET_KEY 设置一个随机值
 SECRET_KEY = os.environ.get(
@@ -42,6 +51,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # WhiteNoise：生产环境（Docker/gunicorn）下由它提供静态文件；
+    # 本机未安装 whitenoise 时自动跳过，行为不变
+    *([] if not _module_available('whitenoise') else ['whitenoise.middleware.WhiteNoiseMiddleware']),
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -118,5 +130,7 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
+# collectstatic 输出目录（生产部署用；配合 WhiteNoise 提供静态文件）
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
