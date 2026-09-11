@@ -272,6 +272,11 @@ class AssetChange(models.Model):
     reason = models.CharField('变更原因', max_length=200, blank=True)
     old_value = models.CharField('变更前', max_length=200, blank=True)
     new_value = models.CharField('变更后', max_length=200, blank=True)
+    # 部门转移可连带记录责任人 / 实际使用人的变动（留空表示不变）
+    old_responsible = models.CharField('变更前责任人', max_length=50, blank=True)
+    old_user = models.CharField('变更前实际使用人', max_length=50, blank=True)
+    new_responsible = models.CharField('变更后责任人', max_length=50, blank=True)
+    new_user = models.CharField('变更后实际使用人', max_length=50, blank=True)
     changed_by = models.CharField('经办人', max_length=50, blank=True)
     change_date = models.DateTimeField('变更时间', auto_now_add=True)
     note = models.CharField('备注', max_length=200, blank=True)

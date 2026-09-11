@@ -1022,7 +1022,8 @@ def change(request):
     all_assets = Asset.objects.all()
     asset_options = [
         {'id': a.pk, 'asset_id': a.asset_id, 'name': a.name, 'status': a.status,
-         'department': a.department.name if a.department else ''}
+         'department': a.department.name if a.department else '',
+         'responsible': a.responsible or '', 'user': a.user or ''}
         for a in all_assets
     ]
 
@@ -1052,8 +1053,16 @@ def change_export(request):
     ws = wb.active
     ws.title = '资产变更'
     headers = ['资产编号', '资产名称', '变更类型', '变更原因', '变更前',
-               '变更后', '经办人', '变更时间', '备注']
+               '变更后', '责任人（变更前→后）', '实际使用人（变更前→后）',
+               '经办人', '变更时间', '备注']
     ws.append(headers)
+
+    def _pair(old, new):
+        old, new = (old or '').strip(), (new or '').strip()
+        if not old and not new:
+            return ''
+        return f'{old or "—"} → {new or "—"}'
+
     for r in records:
         ws.append([
             r.asset.asset_id,
@@ -1062,11 +1071,13 @@ def change_export(request):
             r.reason,
             r.old_value,
             r.new_value,
+            _pair(r.old_responsible, r.new_responsible),
+            _pair(r.old_user, r.new_user),
             r.changed_by,
             timezone.localtime(r.change_date).strftime('%Y-%m-%d %H:%M') if r.change_date else '',
             r.note,
         ])
-    for i, w in enumerate([14, 22, 12, 22, 16, 16, 12, 18, 22], start=1):
+    for i, w in enumerate([14, 22, 12, 22, 16, 16, 20, 20, 12, 18, 22], start=1):
         ws.column_dimensions[chr(64 + i)].width = w
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -1084,6 +1095,8 @@ def change_create(request):
         reason = request.POST.get('reason', '').strip()
         old_value = request.POST.get('old_value', '').strip()
         new_value = request.POST.get('new_value', '').strip()
+        new_responsible = request.POST.get('new_responsible', '').strip()
+        new_user = request.POST.get('new_user', '').strip()
         changed_by = request.POST.get('changed_by', '').strip()
         note = request.POST.get('note', '').strip()
 
@@ -1104,14 +1117,22 @@ def change_create(request):
             if not ok:
                 messages.error(request, msg)
             else:
+                # 部门转移：自动记录变更前的责任人 / 实际使用人（历史快照）
+                old_responsible = asset.responsible if change_type == '部门转移' else ''
+                old_user = asset.user if change_type == '部门转移' else ''
                 from django.db import transaction
                 with transaction.atomic():
                     AssetChange.objects.create(
                         asset=asset, change_type=change_type, reason=reason,
                         old_value=old_value, new_value=new_value,
+                        old_responsible=old_responsible, old_user=old_user,
+                        new_responsible=new_responsible, new_user=new_user,
                         changed_by=changed_by, note=note,
                     )
-                    ok2, msg2 = _apply_change_sync(asset, change_type, new_value)
+                    ok2, msg2 = _apply_change_sync(
+                        asset, change_type, new_value,
+                        new_responsible=new_responsible, new_user=new_user,
+                    )
                     if not ok2:
                         messages.warning(request, '变更记录已保存，但资产同步未完成：' + (msg2 or ''))
                     else:
@@ -1143,14 +1164,24 @@ def _validate_change(change_type, new_value):
     return True, None
 
 
-def _apply_change_sync(asset, change_type, new_value):
-    """按变更类型把变更应用到资产台账（应在 _validate_change 通过后调用）。返回 (ok, msg)。"""
+def _apply_change_sync(asset, change_type, new_value, new_responsible=None, new_user=None):
+    """按变更类型把变更应用到资产台账（应在 _validate_change 通过后调用）。返回 (ok, msg)。
+
+    部门转移时可连带同步新责任人 / 新实际使用人（传 None 或空串表示不变）。
+    """
     from django.db import transaction
     with transaction.atomic():
         if change_type == '部门转移':
             dept = Department.objects.get(name=new_value)
             asset.department = dept
-            asset.save(update_fields=['department'])
+            update_fields = ['department']
+            if new_responsible:
+                asset.responsible = new_responsible
+                update_fields.append('responsible')
+            if new_user:
+                asset.user = new_user
+                update_fields.append('user')
+            asset.save(update_fields=update_fields)
         elif change_type == '状态变更':
             asset.status = new_value
             asset.save(update_fields=['status'])
@@ -1167,6 +1198,10 @@ def change_update(request, pk):
         ch.change_type = request.POST.get('change_type', ch.change_type)
         ch.old_value = request.POST.get('old_value', '').strip()
         ch.new_value = request.POST.get('new_value', '').strip()
+        ch.old_responsible = request.POST.get('old_responsible', '').strip()
+        ch.old_user = request.POST.get('old_user', '').strip()
+        ch.new_responsible = request.POST.get('new_responsible', '').strip()
+        ch.new_user = request.POST.get('new_user', '').strip()
         ch.changed_by = request.POST.get('changed_by', '').strip()
         ch.note = request.POST.get('note', '').strip()
         missing = []
@@ -1192,7 +1227,11 @@ def change_update(request, pk):
         from django.db import transaction
         with transaction.atomic():
             ch.save()
-            ok2, msg2 = _apply_change_sync(ch.asset, ch.change_type, ch.new_value)
+            ok2, msg2 = _apply_change_sync(
+                ch.asset, ch.change_type, ch.new_value,
+                new_responsible=ch.new_responsible if ch.change_type == '部门转移' else None,
+                new_user=ch.new_user if ch.change_type == '部门转移' else None,
+            )
         if ok2:
             messages.success(request, '变更记录已更新，并同步到资产库。')
         else:

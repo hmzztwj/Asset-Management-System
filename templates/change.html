@@ -46,6 +46,14 @@
             <label class="req">变更后（用于同步资产库）</label>
             <input type="text" name="new_value" required placeholder="部门转移填新部门名，状态变更填在用/库存/借出/维修/报废">
         </div>
+        <div class="filter-group only-dept-field">
+            <label>变更后责任人</label>
+            <input type="text" name="new_responsible" placeholder="留空表示不变更">
+        </div>
+        <div class="filter-group only-dept-field">
+            <label>变更后实际使用人</label>
+            <input type="text" name="new_user" placeholder="留空表示不变更">
+        </div>
         <div class="filter-group">
             <label class="req">经办人</label>
             <input type="text" name="changed_by" required placeholder="姓名">
@@ -83,8 +91,18 @@
                 <td>{{ r.asset.name }} <span class="muted">{{ r.asset.asset_id }}</span></td>
                 <td><span class="badge">{{ r.change_type }}</span></td>
                 <td>{{ r.reason|default:'—' }}</td>
-                <td>{{ r.old_value|default:'—' }}</td>
-                <td>{{ r.new_value|default:'—' }}</td>
+                <td>
+                    {{ r.old_value|default:'—' }}
+                    {% if r.old_responsible or r.old_user %}
+                    <div class="muted" style="font-size:12px;">责任人：{{ r.old_responsible|default:'—' }}<br>使用人：{{ r.old_user|default:'—' }}</div>
+                    {% endif %}
+                </td>
+                <td>
+                    {{ r.new_value|default:'—' }}
+                    {% if r.new_responsible or r.new_user %}
+                    <div class="muted" style="font-size:12px;">责任人：{{ r.new_responsible|default:'—' }}<br>使用人：{{ r.new_user|default:'—' }}</div>
+                    {% endif %}
+                </td>
                 <td>{{ r.changed_by|default:'—' }}</td>
                 <td>{{ r.change_date|date:'Y-m-d H:i' }}</td>
                 <td>
@@ -136,6 +154,16 @@ window.addEventListener('load', function () {
             if (t === '部门转移') oldValueInput.value = a.department || '';
             else if (t === '状态变更') oldValueInput.value = a.status || '';
         }
+        // 部门转移才显示「变更后责任人/实际使用人」，并用当前值提示
+        document.querySelectorAll('.only-dept-field').forEach(function (el) {
+            el.style.display = (t === '部门转移') ? '' : 'none';
+        });
+        if (a) {
+            var respInput = document.querySelector('input[name="new_responsible"]');
+            var userInput = document.querySelector('input[name="new_user"]');
+            if (respInput) respInput.placeholder = '当前：' + (a.responsible || '无') + '（留空表示不变更）';
+            if (userInput) userInput.placeholder = '当前：' + (a.user || '无') + '（留空表示不变更）';
+        }
     }
 
     initAssetPick(assetPick, assets, updateOldValue);
@@ -145,6 +173,11 @@ window.addEventListener('load', function () {
     var types = JSON.parse(document.getElementById('changetype-options').textContent);
     initPick(typePick, types, updateOldValue);
     prefillPick(typePick, types, function (o) { return o.text; });
+
+    // 初始未选类型时隐藏人员变更字段
+    document.querySelectorAll('.only-dept-field').forEach(function (el) {
+        el.style.display = 'none';
+    });
 });
 </script>
 {% endblock %}

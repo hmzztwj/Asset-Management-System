@@ -34,6 +34,22 @@
                 <label class="req">变更后（用于同步到资产库）</label>
                 <input type="text" name="new_value" required value="{{ ch.new_value|default:'' }}" placeholder="部门转移填新部门名，状态变更填在用/库存/借出/维修/报废">
             </div>
+            <div class="form-field" data-dept-only>
+                <label>变更前责任人</label>
+                <input type="text" name="old_responsible" value="{{ ch.old_responsible|default:'' }}" placeholder="留空表示无记录">
+            </div>
+            <div class="form-field" data-dept-only>
+                <label>变更前实际使用人</label>
+                <input type="text" name="old_user" value="{{ ch.old_user|default:'' }}" placeholder="留空表示无记录">
+            </div>
+            <div class="form-field" data-dept-only>
+                <label>变更后责任人</label>
+                <input type="text" name="new_responsible" value="{{ ch.new_responsible|default:'' }}" placeholder="留空表示不变更">
+            </div>
+            <div class="form-field" data-dept-only>
+                <label>变更后实际使用人</label>
+                <input type="text" name="new_user" value="{{ ch.new_user|default:'' }}" placeholder="留空表示不变更">
+            </div>
             <div class="form-field full">
                 <label>备注</label>
                 <input type="text" name="note" value="{{ ch.note|default:'' }}">
@@ -45,4 +61,22 @@
         </div>
     </form>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 仅「部门转移」显示责任人/实际使用人字段
+(function () {
+    var typeSel = document.querySelector('select[name="change_type"]');
+    if (!typeSel) return;
+    function sync() {
+        var show = typeSel.value === '部门转移';
+        document.querySelectorAll('[data-dept-only]').forEach(function (el) {
+            el.style.display = show ? '' : 'none';
+        });
+    }
+    typeSel.addEventListener('change', sync);
+    sync();
+})();
+</script>
 {% endblock %}
