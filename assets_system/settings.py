@@ -105,6 +105,24 @@ DATABASES = {
     }
 }
 
+# 缓存后端：
+# - 默认 LocMemCache（单进程够用，适合本机 runserver / 单 worker 部署）
+# - 设置 ASSETS_REDIS_URL（如 redis://redis:6379/0）后切换为 Redis，
+#   多 worker / 多实例部署时登录锁定等跨进程状态才能共享
+if os.environ.get('ASSETS_REDIS_URL'):
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': os.environ['ASSETS_REDIS_URL'],
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        }
+    }
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',

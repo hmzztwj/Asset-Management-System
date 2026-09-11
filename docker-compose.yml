@@ -13,6 +13,17 @@ services:
       - ASSETS_SECRET_KEY=please-change-me-to-a-long-random-string
       # 局域网使用可保持 *；有域名或固定 IP 建议改成具体值，如 192.168.1.10
       - ASSETS_ALLOWED_HOSTS=*
+      # Redis 缓存：登录锁定等跨进程状态共享；未来加 worker 无需再改代码
+      - ASSETS_REDIS_URL=redis://redis:6379/0
     volumes:
       - ./data:/app/data     # SQLite 数据库（把现有 db.sqlite3 拷到宿主机 ./data/ 下）
       - ./backup:/app/backup # 自动备份目录（与页面「数据备份」设置对应）
+    depends_on:
+      - redis
+
+  # 轻量缓存服务：只存登录失败计数/锁定状态（内存态，无需持久化）
+  redis:
+    image: redis:7-alpine
+    container_name: asset-redis
+    restart: always
+    # 不对外暴露端口，仅容器网络内部可访问

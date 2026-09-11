@@ -3,3 +3,5 @@ openpyxl>=3.1,<4.0
 # 生产部署（Docker 容器内使用）
 gunicorn>=21.2,<24.0
 whitenoise>=6.6,<7.0
+# Redis 缓存驱动（设置 ASSETS_REDIS_URL 时使用，Django 5 内置 RedisCache 后端）
+redis>=5.0,<7.0
