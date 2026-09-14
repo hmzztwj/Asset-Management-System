@@ -27,10 +27,14 @@ def overdue_alert(request):
     """逾期主动提醒：为已登录用户提供逾期领用数量与前若干条明细。
 
     供两类位置使用：
-    - 侧栏「资产领用」菜单上的红色徽标（数量）；
-    - 页面顶部的全局提醒条（前 5 条 + 跳转「逾期」筛选）。
+    - 侧栏「资产领用」菜单上的红色徽标（数量，常驻但很轻）；
+    - 进入系统时弹出的提醒弹窗（前 5 条 + 跳转「逾期」筛选，同一天只弹一次）。
 
-    未登录、或数据库尚未就绪时一律返回 0，绝不影响页面渲染。
+    逾期**不再**做成每个页面正文顶部的常驻横幅 —— 那是打扰。
+
+    没有领用查看权限的账号直接返回 0：他们看不到领用菜单、也无从处理，
+    顺带省掉每页一次的统计查询。未登录、或数据库尚未就绪时同样返回 0，
+    绝不影响页面渲染。
     """
     empty = {'overdue_alert_count': 0, 'overdue_alert_items': []}
     user = getattr(request, 'user', None)
@@ -39,6 +43,10 @@ def overdue_alert(request):
     try:
         from django.utils import timezone
         from .models import Requisition
+        from .permissions import user_has_perm
+
+        if not user_has_perm(user, 'view_requisition'):
+            return empty
 
         today = timezone.localdate()
         qs = (

@@ -99,23 +99,6 @@
         </header>
 
         <div class="content">
-            {% if overdue_alert_count %}
-            <div class="alert-banner">
-                <div class="alert-banner-icon">⚠️</div>
-                <div class="alert-banner-body">
-                    <div class="alert-banner-title">有 {{ overdue_alert_count }} 项资产已逾期未归还</div>
-                    <div class="alert-banner-list">
-                        {% for it in overdue_alert_items %}
-                        <span class="alert-chip">{{ it.asset }} · {{ it.user }}（超期 {{ it.days }} 天）</span>
-                        {% endfor %}
-                        {% if overdue_alert_count > overdue_alert_items|length %}
-                        <span class="alert-chip muted">…等共 {{ overdue_alert_count }} 项</span>
-                        {% endif %}
-                    </div>
-                </div>
-                <a class="btn btn-sm" href="{% url 'requisition' %}?status=逾期">查看全部</a>
-            </div>
-            {% endif %}
             {% block content %}{% endblock %}
         </div>
     </main>
@@ -123,6 +106,33 @@
 
 <div id="toast-container" class="toast-container"></div>
 {{ messages_json|json_script:"toast-messages" }}
+
+{# 逾期提醒弹窗：只在这里出现，不再挂到每个页面的正文上 #}
+{% if overdue_alert_count %}
+<div class="modal-mask" id="overdue-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="overdue-modal-title">
+        <div class="modal-head">
+            <span class="modal-icon">⚠️</span>
+            <span id="overdue-modal-title">有 {{ overdue_alert_count }} 项资产已逾期未归还</span>
+        </div>
+        <div class="modal-body">
+            {% for it in overdue_alert_items %}
+            <div class="overdue-item">
+                <div class="overdue-item-name">{{ it.asset }} <span class="muted">{{ it.asset_id }}</span></div>
+                <div class="overdue-item-meta">领用人 {{ it.user }} · 超期 {{ it.days }} 天 · 应还 {{ it.due_date|date:'Y-m-d' }}</div>
+            </div>
+            {% endfor %}
+            {% if overdue_alert_count > overdue_alert_items|length %}
+            <div class="muted" style="font-size:12px;">…等共 {{ overdue_alert_count }} 项</div>
+            {% endif %}
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-outline btn-sm" data-close>稍后处理</button>
+            <a class="btn btn-sm" href="{% url 'requisition' %}?status=逾期">去处理</a>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <script>
 document.getElementById('today').textContent = new Date().toLocaleDateString(
@@ -159,6 +169,46 @@ document.getElementById('today').textContent = new Date().toLocaleDateString(
             a.addEventListener('click', closeSidebar);
         });
     }
+})();
+
+// 逾期提醒弹窗：进入系统时提醒一次即可，不要每次翻页都弹。
+// 用 sessionStorage 记住"今天已经看过"，同一天同一会话内不再打扰；
+// 关掉浏览器或跨天再进来会重新提醒一次。
+(function () {
+    var modal = document.getElementById('overdue-modal');
+    if (!modal) return;
+
+    var store = null;
+    try {
+        sessionStorage.setItem('__t', '1');
+        sessionStorage.removeItem('__t');
+        store = sessionStorage;
+    } catch (e) {
+        // 隐私模式等场景下存储不可用：宁可不弹，也不要每页都弹
+        return;
+    }
+
+    var d = new Date();
+    var today = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+    var KEY = 'overdue-alert-seen';
+    if (store.getItem(KEY) === today) return;
+    store.setItem(KEY, today);
+
+    function close() {
+        modal.hidden = true;
+        document.body.classList.remove('modal-open');
+        document.removeEventListener('keydown', onKey);
+    }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+
+    modal.hidden = false;
+    document.body.classList.add('modal-open');
+    modal.querySelectorAll('[data-close]').forEach(function (el) {
+        el.addEventListener('click', close);
+    });
+    // 点遮罩空白处也关闭
+    modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+    document.addEventListener('keydown', onKey);
 })();
 
 // 右上角头像下拉
