@@ -15,7 +15,9 @@ services:
       - ASSETS_DB_PATH=/app/data/db.sqlite3
       # 生产环境务必改成随机长字符串（一串无规律字母数字即可）
       - ASSETS_SECRET_KEY=please-change-me-to-a-long-random-string
-      # 局域网使用可保持 *；有域名或固定 IP 建议改成具体值，如 192.168.1.10、assets.example.com
+      # 局域网使用可保持 *；有域名或固定 IP 建议改成具体值
+      # ⚠️ 改成具体值后，必须把「IP + 所有访问用的域名（含不带 www 的）」都写上，逗号分隔，漏写会返回 Bad Request (400)
+      #    例：ASSETS_ALLOWED_HOSTS=10.10.2.7,www.mdassetsmg.com,mdassetsmg.com
       - ASSETS_ALLOWED_HOSTS=*
       # 配了域名（尤其走 HTTPS 反代）时填，例：ASSETS_CSRF_ORIGINS=https://assets.example.com
       # 不配也能正常用 IP:端口 访问；配了域名不填此项，域名下提交表单会报 403
