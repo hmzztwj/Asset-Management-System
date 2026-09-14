@@ -33,17 +33,18 @@
         }
         .label {
             width: 60mm; height: 40mm; border: 1px dashed #cbd5e1; border-radius: 3mm;
-            padding: 3mm; display: flex; gap: 3mm; align-items: center; overflow: hidden;
+            padding: 2.5mm; display: flex; gap: 2.5mm; align-items: center; overflow: hidden;
             background: #fff;
         }
-        .qr { width: 26mm; height: 26mm; flex: 0 0 auto; display: block; }
+        /* 二维码里带了资产信息快照，模块比纯编号密，尺寸给足才扫得动 */
+        .qr { width: 28mm; height: 28mm; flex: 0 0 auto; display: block; }
         .meta { flex: 1; min-width: 0; }
         .name {
             font-size: 12px; font-weight: 700; margin-bottom: 1.5mm;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        .row { display: flex; gap: 2mm; line-height: 1.5; font-size: 11px; }
-        .k { color: #6b7280; flex: 0 0 12mm; }
+        .row { display: flex; gap: 1.5mm; line-height: 1.5; font-size: 11px; }
+        .k { color: #6b7280; flex: 0 0 10mm; }
         .v { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .org { margin-top: 1.5mm; font-size: 10px; color: #9ca3af; }
         .empty { width: 100%; text-align: center; color: #6b7280; padding: 40px 0; }
@@ -63,7 +64,8 @@
 <div class="bar no-print">
     <div>
         <div class="bar-title">资产标签打印（共 {{ assets|length }} 张）</div>
-        <div class="tip">需打印二维码时请勾选「背景图形」；标签为 60×40mm，可直接用不干胶纸打印或裁剪粘贴。</div>
+        <div class="tip">需打印二维码时请勾选「背景图形」；标签为 60×40mm，可直接用不干胶纸打印或裁剪粘贴。<br>
+            二维码内嵌该资产的信息快照，手机扫码直接查看、无需登录；资产信息变更后请重新打印对应标签。</div>
     </div>
     <div class="bar-actions">
         <button type="button" class="btn" onclick="window.print()">🖨 打印</button>
@@ -81,7 +83,7 @@
             <div class="row"><span class="k">部门</span><span class="v">{{ a.department.name|default:'—' }}</span></div>
             <div class="row"><span class="k">责任人</span><span class="v">{{ a.responsible|default:'—' }}</span></div>
             <div class="row"><span class="k">存放</span><span class="v">{{ a.location|default:'—' }}</span></div>
-            <div class="org">扫码可查看该资产台账</div>
+            <div class="org">扫码直达该资产信息</div>
         </div>
     </div>
     {% empty %}

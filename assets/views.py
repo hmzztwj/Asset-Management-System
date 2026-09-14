@@ -1,5 +1,6 @@
 import csv
 import datetime
+import hashlib
 import math
 import os
 from decimal import Decimal, InvalidOperation
@@ -20,7 +21,10 @@ from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.cache import get_conditional_response
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.http import require_GET
+from . import asset_snapshot as snapshot
 from . import oplog
 from .models import (
     Department, Asset, Requisition, AssetChange, Role, UserProfile,
@@ -425,7 +429,6 @@ def library(request):
     page_obj = paginator.get_page(request.GET.get('page'))
 
     # 保留筛选参数的查询串（排除排序/方向/页码），供排序链接复用
-    from urllib.parse import urlencode
     keep = {k: v for k, v in request.GET.items() if k not in ('sort', 'dir', 'page')}
     base_qs = urlencode(keep)
     qs_no_perpage = urlencode({k: v for k, v in request.GET.items() if k not in ('page', 'per_page')})
@@ -1700,23 +1703,81 @@ def _perm_labels(role):
     return labels
 
 
-# ---------- 资产二维码 / 标签打印 ----------
+# ---------- 资产二维码 / 标签打印 / 扫码信息卡 ----------
+QR_CACHE_SECONDS = 24 * 3600
+
+
+def _cached_qr_svg(payload):
+    """按内容缓存二维码图片。
+
+    二维码内容里带了资产快照，所以"内容相同"就等于"图相同"——
+    直接用内容做缓存键：资产没变就命中缓存，资产一改内容就变、自然重算，
+    不需要任何失效逻辑。生成一张要 ~30ms，标签页动辄上百张，这层缓存很关键。
+    """
+    key = 'assetqr:' + hashlib.md5(payload.encode('utf-8')).hexdigest()
+    svg = cache.get(key)
+    if svg is None:
+        svg = qr_svg(payload)
+        cache.set(key, svg, QR_CACHE_SECONDS)
+    return svg
+
+
 @perm_required('view_assets')
 def asset_qr(request, pk):
     """返回单个资产的二维码图片（SVG）。
 
-    默认把「用手机扫码即可打开该资产在资产库中的搜索页」的地址编码进去，
-    扫码后直接定位到资产；``?data=code`` 时改为只编码资产编号纯文本。
-    二维码在本机离线生成，不依赖任何外部服务。
+    默认把「资产信息快照」编码进二维码：扫码后直接看到一个只读信息卡
+    （``asset_card``），**不需要登录，也不会落到资产库列表页**。
+    信息跟着二维码走，所以标签贴出去之后，没账号的人也能看清这是什么资产。
+
+    ``?data=code`` 时退化为只编码资产编号纯文本（兼容扫码枪/旧标签）。
+
+    二维码在本机离线生成，不依赖任何外部服务。响应带 ETag 且要求浏览器
+    每次校验：资产一改，扫码内容立刻变新，不会把旧快照打进标签。
     """
-    asset = get_object_or_404(Asset, pk=pk)
+    asset = get_object_or_404(Asset.objects.select_related('department'), pk=pk)
     if request.GET.get('data') == 'code':
         payload = asset.asset_id
     else:
-        base = request.build_absolute_uri(reverse('library'))
-        payload = base + '?' + urlencode({'field': 'asset', 'q': asset.asset_id})
-    response = HttpResponse(qr_svg(payload), content_type='image/svg+xml')
-    response['Cache-Control'] = 'public, max-age=86400'
+        payload = snapshot.card_payload(request.build_absolute_uri(reverse('asset_card')), asset)
+
+    response = HttpResponse(_cached_qr_svg(payload), content_type='image/svg+xml')
+    response['ETag'] = '"%s"' % hashlib.md5(payload.encode('utf-8')).hexdigest()
+    response['Cache-Control'] = 'private, no-cache, max-age=0'
+    return get_conditional_response(request, etag=response['ETag'], response=response) or response
+
+
+@require_GET
+def asset_card(request):
+    """扫码落地页：直接显示二维码里携带的资产信息快照。
+
+    * **免登录**：扫码的人不需要系统账号；
+    * **只读**：没有任何编辑/跳转入口，只有一个返回说明；
+    * **不查库**：页面内容全部来自 ``?d=`` 参数，改参数也枚举不出别的资产。
+
+    参数缺失或损坏时给出可读的提示页，而不是报错栈。
+    """
+    data = snapshot.decode(request.GET.get('d', ''))
+    fields = []
+    if data:
+        for key in snapshot.CARD_FIELDS:
+            value = (data.get(key) or '').strip()
+            if not value:
+                continue
+            if key == 'price':
+                # 台账里 0 元多半是"未估值"，显示 ¥0.00 反而像出错，直接略过。
+                if value in ('0.00', '0'):
+                    continue
+                value = f'¥ {value}'
+            fields.append({'key': key, 'label': snapshot.LABELS[key], 'value': value})
+
+    context = {
+        'a': data,
+        'fields': fields,
+        'tone': snapshot.status_tone(data['status']) if data else 'muted',
+    }
+    response = render(request, 'asset_card.html', context)
+    response['X-Robots-Tag'] = 'noindex, nofollow'
     return response
 
 

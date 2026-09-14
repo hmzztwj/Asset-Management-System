@@ -134,6 +134,10 @@ MEDIA_URL = '/media/'
 # - 默认 LocMemCache（单进程够用，适合本机 runserver / 单 worker 部署）
 # - 设置 ASSETS_REDIS_URL（如 redis://redis:6379/0）后切换为 Redis，
 #   多 worker / 多实例部署时登录锁定等跨进程状态才能共享
+#
+# 这里缓存的不只是登录锁定计数，还有资产二维码图片（按内容缓存，见 views.asset_qr）。
+# LocMemCache 默认 MAX_ENTRIES=300，资产上千条时会把二维码缓存挤掉、
+# 甚至把登录锁定计数挤掉，所以显式放大（每条约几 KB）。
 if os.environ.get('ASSETS_REDIS_URL'):
     CACHES = {
         'default': {
@@ -145,6 +149,7 @@ else:
     CACHES = {
         'default': {
             'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'OPTIONS': {'MAX_ENTRIES': 2000},
         }
     }
 

@@ -10,6 +10,9 @@ urlpatterns = [
     # 首页仪表盘
     path('', views.dashboard, name='dashboard'),
 
+    # 扫码落地页：免登录只读，内容全部来自二维码本身
+    path('a/', views.asset_card, name='asset_card'),
+
     # 资产库
     path('library/', views.library, name='library'),
     path('library/add/', views.asset_create, name='asset_create'),
