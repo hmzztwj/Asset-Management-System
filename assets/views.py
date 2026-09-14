@@ -308,12 +308,16 @@ def dashboard(request):
     overdue = Requisition.objects.filter(
         status='借出', due_date__lt=timezone.localdate()
     ).count()
-    # 逾期清单（按超期天数倒序），供首页「逾期提醒」卡片展示与跳转
-    overdue_records = list(
+    # 逾期清单（按超期天数倒序：预计归还最早 = 超期最久在前），
+    # 首页「逾期提醒」卡片每页 5 条，超出走分页（?page=N）
+    overdue_qs = (
         Requisition.objects.filter(status='借出', due_date__lt=timezone.localdate())
         .select_related('asset', 'department')
-        .order_by('due_date')[:8]
+        .order_by('due_date')
     )
+    overdue = overdue_qs.count()
+    page_obj = Paginator(overdue_qs, 5).get_page(request.GET.get('page'))
+    overdue_records = list(page_obj.object_list)
     for r in overdue_records:
         r.overdue_days = (timezone.localdate() - r.due_date).days
     total_value = Asset.objects.aggregate(v=Sum('price'))['v'] or 0
@@ -332,6 +336,7 @@ def dashboard(request):
         'total_departments': total_departments,
         'overdue': overdue,
         'overdue_records': overdue_records,
+        'page_obj': page_obj,  # 逾期清单分页（复用 _pagination.html）
         'total_value': total_value,
         'pending_return': pending_return,
         'recent_changes': AssetChange.objects.select_related('asset')[:6],

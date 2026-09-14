@@ -57,9 +57,7 @@
         </tbody>
     </table>
     </div>
-    {% if overdue > overdue_records|length %}
-    <div class="muted" style="padding:8px 0;">仅列出超期最久的 {{ overdue_records|length }} 项，其余请点「查看全部」。</div>
-    {% endif %}
+    {% include '_pagination.html' %}
 </div>
 {% endif %}
 
