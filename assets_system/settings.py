@@ -39,6 +39,17 @@ ALLOWED_HOSTS = [
     h.strip() for h in os.environ.get('ASSETS_ALLOWED_HOSTS', '*').split(',') if h.strip()
 ] or ['*']
 
+# ---- 反向代理（Nginx/OpenResty/1Panel 网站）支持 ----
+# 经过 HTTPS 反代访问时，Nginx 会带 X-Forwarded-Proto 头；
+# 信任该头后 Django 才能正确识别 https，避免表单 CSRF 校验 403 与重定向到 http。
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# 跨域来源白名单：用域名（尤其 https）访问时按需设置，
+# 例：ASSETS_CSRF_ORIGINS=https://assets.example.com（可逗号分隔多个）
+CSRF_TRUSTED_ORIGINS = [
+    o.strip() for o in os.environ.get('ASSETS_CSRF_ORIGINS', '').split(',') if o.strip()
+]
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
