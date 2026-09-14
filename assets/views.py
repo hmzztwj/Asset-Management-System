@@ -1050,7 +1050,8 @@ def requisition_create(request):
         actual_user = request.POST.get('actual_user', '').strip()
         department_id = request.POST.get('department') or None
         purpose = request.POST.get('purpose', '').strip()
-        due_date = request.POST.get('due_date') or None
+        due_raw = (request.POST.get('due_date') or '').strip()
+        due_date = _parse_date(due_raw) if due_raw else None
 
         if not asset_id:
             messages.error(request, '请选择要领用的资产。')
@@ -1058,8 +1059,10 @@ def requisition_create(request):
             messages.error(request, '领用人不能为空。')
         elif not department_id:
             messages.error(request, '请选择领用部门。')
-        elif not due_date:
+        elif not due_raw:
             messages.error(request, '请选择预计归还日期。')
+        elif due_date is None:
+            messages.error(request, '预计归还日期格式不正确，应为 YYYY-MM-DD。')
         elif not purpose:
             messages.error(request, '请填写领用用途。')
         else:
@@ -1116,8 +1119,12 @@ def requisition_edit(request, pk):
         record.actual_user = request.POST.get('actual_user', record.actual_user).strip()
         record.department_id = request.POST.get('department') or None
         record.purpose = request.POST.get('purpose', '').strip()
-        record.due_date = request.POST.get('due_date') or None
-        record.return_date = request.POST.get('return_date') or None
+        # 日期必须真正解析成 date 对象：直接把表单字符串赋给 DateField，
+        # SQLite 能存进去，但后续 strftime / 日期比较会以 str 报 500
+        due_raw = (request.POST.get('due_date') or '').strip()
+        return_raw = (request.POST.get('return_date') or '').strip()
+        record.due_date = _parse_date(due_raw) if due_raw else None
+        record.return_date = _parse_date(return_raw) if return_raw else None
         # 状态归一化：存储态仅「借出/已归还」；逾期为派生状态，不允许手工入库
         raw_status = request.POST.get('status', '')
         record.status = '已归还' if raw_status == '已归还' else '借出'
@@ -1127,8 +1134,12 @@ def requisition_edit(request, pk):
             messages.error(request, '请选择领用部门。')
         elif not record.purpose:
             messages.error(request, '请填写领用用途。')
-        elif not record.due_date:
+        elif not due_raw:
             messages.error(request, '请选择预计归还日期。')
+        elif record.due_date is None:
+            messages.error(request, '预计归还日期格式不正确，应为 YYYY-MM-DD。')
+        elif return_raw and record.return_date is None:
+            messages.error(request, '归还日期格式不正确，应为 YYYY-MM-DD。')
         else:
             record.save()
             after = {
