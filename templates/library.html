@@ -60,6 +60,7 @@
     <a class="btn btn-danger btn-outline-danger" href="#" onclick="submitBulkDelete();return false;">🗑 批量删除</a>
     {% endif %}
     <a class="btn btn-outline" href="?{% if base_qs %}{{ base_qs }}&{% endif %}export=csv">⬇ 导出CSV</a>
+    <a class="btn btn-outline" href="#" onclick="printLabels();return false;">🖨 打印标签</a>
 </div>
 <form id="f" method="get"></form>
 
@@ -96,6 +97,7 @@
                 <th>配置</th>
                 <th><a class="th-sort" href="?{{ base_qs }}{% if base_qs %}&{% endif %}sort=price&dir={% if sort == 'price' and direction == 'asc' %}desc{% else %}asc{% endif %}">资产价值(元){% if sort == 'price' %}<span class="arrow">{% if direction == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
                 <th>存放位置</th>
+                <th>二维码</th>
                 <th>操作</th>
             </tr>
         </thead>
@@ -123,6 +125,11 @@
                 <td>{{ a.configuration|default:'—' }}</td>
                 <td>{{ a.price }}</td>
                 <td>{{ a.location|default:'—' }}</td>
+                <td>
+                    <a href="{% url 'asset_labels' %}?ids={{ a.pk }}" target="_blank" title="打开标签打印（含二维码）">
+                        <img class="qr-thumb" loading="lazy" src="{% url 'asset_qr' a.pk %}" alt="二维码">
+                    </a>
+                </td>
                 <td>
                     {% if user|has_perm:'manage_assets' %}
                     <div class="col-actions">
@@ -181,6 +188,20 @@ function submitBulkDelete() {
     var f = document.getElementById('bulk-delete-form');
     f.querySelector('[name=ids]').value = ids;
     confirmAction('确认删除选中的 ' + sel.length + ' 条资产？此操作不可撤销。', 'bulk-delete-form');
+    return false;
+}
+
+// 打印标签：勾选了资产就打印勾选项，否则按当前筛选条件打印（直接复用地址栏参数，避免转义问题）
+function printLabels() {
+    var sel = document.querySelectorAll('.table .sel:checked');
+    var base = "{% url 'asset_labels' %}";
+    if (sel.length > 0) {
+        var ids = Array.prototype.map.call(sel, function (c) { return c.value; }).join(',');
+        window.open(base + '?ids=' + encodeURIComponent(ids), '_blank');
+    } else {
+        if (!confirm('未勾选资产，是否按当前筛选条件打印全部标签？')) return false;
+        window.open(base + (window.location.search || ''), '_blank');
+    }
     return false;
 }
 </script>

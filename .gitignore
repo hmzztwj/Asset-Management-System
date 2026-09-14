@@ -9,6 +9,9 @@ env/
 # ---- 数据库（含真实业务台账，禁止提交公开仓库）----
 db.sqlite3
 db.sqlite3-journal
+# SQLite WAL 模式产生的旁路文件
+*.sqlite3-wal
+*.sqlite3-shm
 
 # ---- 真实数据源（同样含敏感台账，不提交）----
 实际数据/
@@ -38,6 +41,7 @@ backup/
 # ---- Docker 部署产物 ----
 data/
 staticfiles/
+logs/
 
 # ---- 本地归档（历史备份/临时文件，含真实数据，禁止提交）----
 archive/

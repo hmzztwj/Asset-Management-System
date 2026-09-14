@@ -11,7 +11,7 @@ python manage.py collectstatic --noinput
 echo "[entrypoint] 确保内置管理员账号存在..."
 python ensure_admin.py
 
-echo "[entrypoint] 启动 gunicorn（单进程多线程：密码锁定计数依赖进程内存）..."
+echo "[entrypoint] 启动 gunicorn（单进程多线程；已设 ASSETS_REDIS_URL 时登录锁定计数由 Redis 共享）..."
 exec gunicorn assets_system.wsgi:application \
     --bind 0.0.0.0:8000 \
     --workers 1 \

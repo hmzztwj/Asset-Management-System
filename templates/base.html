@@ -38,6 +38,7 @@
             {% if user.is_superuser or user|has_perm:'view_requisition' %}
             <a class="nav-item {% if active == 'requisition' %}active{% endif %}" href="{% url 'requisition' %}">
                 <span class="nav-icon">📤</span>资产领用
+                {% if overdue_alert_count %}<span class="nav-badge">{{ overdue_alert_count }}</span>{% endif %}
             </a>
             {% endif %}
             {% if user.is_superuser or user|has_perm:'view_change' %}
@@ -45,14 +46,21 @@
                 <span class="nav-icon">🔄</span>资产变更
             </a>
             {% endif %}
-            {% if user.is_superuser or user|has_perm:'manage_users' %}
+            {% if user.is_superuser or user|has_perm:'manage_users' or user.is_staff %}
             <div class="nav-group">系统管理</div>
+            {% if user.is_superuser or user|has_perm:'manage_users' %}
             <a class="nav-item {% if active == 'users' %}active{% endif %}" href="{% url 'user_list' %}">
                 <span class="nav-icon">👥</span>用户管理
             </a>
             <a class="nav-item {% if active == 'roles' %}active{% endif %}" href="{% url 'role_list' %}">
                 <span class="nav-icon">🛡️</span>角色管理
             </a>
+            {% endif %}
+            {% if user.is_staff or user.is_superuser %}
+            <a class="nav-item {% if active == 'oplog' %}active{% endif %}" href="{% url 'oplog_list' %}">
+                <span class="nav-icon">📜</span>操作日志
+            </a>
+            {% endif %}
             {% endif %}
             {% endif %}
         </nav>
@@ -91,6 +99,23 @@
         </header>
 
         <div class="content">
+            {% if overdue_alert_count %}
+            <div class="alert-banner">
+                <div class="alert-banner-icon">⚠️</div>
+                <div class="alert-banner-body">
+                    <div class="alert-banner-title">有 {{ overdue_alert_count }} 项资产已逾期未归还</div>
+                    <div class="alert-banner-list">
+                        {% for it in overdue_alert_items %}
+                        <span class="alert-chip">{{ it.asset }} · {{ it.user }}（超期 {{ it.days }} 天）</span>
+                        {% endfor %}
+                        {% if overdue_alert_count > overdue_alert_items|length %}
+                        <span class="alert-chip muted">…等共 {{ overdue_alert_count }} 项</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <a class="btn btn-sm" href="{% url 'requisition' %}?status=逾期">查看全部</a>
+            </div>
+            {% endif %}
             {% block content %}{% endblock %}
         </div>
     </main>

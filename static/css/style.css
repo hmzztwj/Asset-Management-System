@@ -700,3 +700,51 @@ body.mobile .page-btns { justify-content: center; }
 body.mobile .view-tabs { display: flex; overflow-x: auto; max-width: 100%; }
 body.mobile .tab { white-space: nowrap; flex: 0 0 auto; }
 
+
+/* ---------- 侧栏菜单徽标（逾期数量提醒） ---------- */
+.nav-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px; margin-left: auto;
+    background: var(--red); color: #fff; font-size: 11px; font-weight: 700;
+    border-radius: 9px; line-height: 1;
+}
+.nav-item { display: flex; align-items: center; }
+
+/* ---------- 全局逾期提醒条 ---------- */
+.alert-banner {
+    display: flex; align-items: center; gap: 12px;
+    background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412;
+    border-radius: var(--radius); padding: 12px 14px; margin-bottom: 16px;
+}
+.alert-banner-icon { font-size: 20px; flex: 0 0 auto; }
+.alert-banner-body { flex: 1; min-width: 0; }
+.alert-banner-title { font-weight: 700; margin-bottom: 4px; }
+.alert-banner-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.alert-chip {
+    background: #ffedd5; border: 1px solid #fdba74; color: #7c2d12;
+    padding: 1px 8px; border-radius: 10px; font-size: 12px;
+}
+.alert-chip.muted { background: #f3f4f6; border-color: #e5e7eb; color: var(--muted); }
+
+/* ---------- 资产附件 ---------- */
+.attach-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.attach-item {
+    display: flex; align-items: center; gap: 10px;
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+    background: #fbfcfe;
+}
+.attach-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attach-meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.attach-empty { color: var(--muted); padding: 6px 0; }
+
+/* ---------- 资产库二维码缩略 ---------- */
+.qr-thumb { width: 34px; height: 34px; display: block; background: #fff; border: 1px solid var(--border); border-radius: 4px; }
+
+@media (max-width: 720px) {
+    .alert-banner { flex-wrap: wrap; }
+    .alert-banner .btn { width: 100%; justify-content: center; }
+}
+
+/* ---------- 操作日志 ---------- */
+.oplog-detail { max-width: 460px; white-space: normal; word-break: break-word; }
+.nowrap { white-space: nowrap; }

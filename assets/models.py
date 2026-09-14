@@ -399,3 +399,99 @@ class BackupSetting(models.Model):
         """获取（或创建）唯一的设置记录。"""
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+
+class AssetAttachment(models.Model):
+    """资产附件 —— 发票、实物照片、验收单等留证材料。
+
+    文件物理存放在 MEDIA_ROOT 下（默认 data/media/attachments/YYYY/MM/），
+    下载统一走受登录与权限保护的视图（views.attachment_download），
+    不直接暴露媒体目录，避免附件被匿名下载。
+    """
+    # 允许的附件后缀（小写，含点）与单文件大小上限
+    ALLOWED_EXT = (
+        '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt',
+        '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.zip', '.rar', '.7z',
+    )
+    MAX_SIZE = 20 * 1024 * 1024  # 20 MB
+
+    asset = models.ForeignKey(
+        Asset, verbose_name='资产', on_delete=models.CASCADE, related_name='attachments',
+    )
+    file = models.FileField('文件', upload_to='attachments/%Y/%m/')
+    name = models.CharField('文件名', max_length=200, blank=True)
+    note = models.CharField('备注', max_length=200, blank=True)
+    size = models.PositiveIntegerField('文件大小(字节)', default=0)
+    uploaded_by = models.CharField('上传人', max_length=50, blank=True)
+    uploaded_at = models.DateTimeField('上传时间', auto_now_add=True)
+
+    class Meta:
+        verbose_name = '资产附件'
+        verbose_name_plural = '资产附件'
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return self.name or (self.file.name if self.file else '附件')
+
+    @property
+    def size_h(self):
+        """可读的文件大小。"""
+        num = float(self.size or 0)
+        if num < 1024:
+            return f'{int(num)} B'
+        for unit in ('KB', 'MB', 'GB'):
+            num /= 1024.0
+            if num < 1024 or unit == 'GB':
+                return f'{num:.1f} {unit}'
+        return f'{num:.1f} GB'
+
+
+class OperationLog(models.Model):
+    """全局操作日志 —— 记录"谁在什么时候对什么做了什么"。
+
+    覆盖：登录成功/失败、资产增删改（含字段级变更明细）、领用、变更、
+    组织架构、用户/角色、备份生成/恢复/删除、附件上传删除。
+
+    写入统一走 assets/oplog.py 的 log()，该函数吞掉所有异常，
+    保证日志失败绝不影响主业务流程。
+    """
+    CATEGORY_CHOICES = [
+        ('auth', '登录认证'),
+        ('asset', '资产库'),
+        ('requisition', '资产领用'),
+        ('change', '资产变更'),
+        ('org', '组织架构'),
+        ('user', '用户/角色'),
+        ('backup', '数据备份'),
+        ('attachment', '资产附件'),
+    ]
+    ACTION_CHOICES = [
+        ('login', '登录成功'),
+        ('login_fail', '登录失败'),
+        ('logout', '退出登录'),
+        ('create', '新增'),
+        ('update', '修改'),
+        ('delete', '删除'),
+        ('import', '批量导入'),
+        ('backup', '生成备份'),
+        ('restore', '恢复备份'),
+        ('download', '下载'),
+        ('other', '其它'),
+    ]
+
+    created_at = models.DateTimeField('时间', auto_now_add=True, db_index=True)
+    category = models.CharField('模块', max_length=20, choices=CATEGORY_CHOICES, db_index=True)
+    action = models.CharField('动作', max_length=20, choices=ACTION_CHOICES, db_index=True)
+    target = models.CharField('操作对象', max_length=200, blank=True)
+    detail = models.TextField('详情', blank=True)
+    operator = models.CharField('操作人', max_length=50, blank=True, db_index=True)
+    ip = models.CharField('来源 IP', max_length=45, blank=True)
+
+    class Meta:
+        verbose_name = '操作日志'
+        verbose_name_plural = '操作日志'
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['-created_at', 'category'])]
+
+    def __str__(self):
+        return f'[{self.get_category_display()}] {self.get_action_display()} {self.target}'

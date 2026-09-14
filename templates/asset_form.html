@@ -77,6 +77,39 @@
         </div>
     </form>
 </div>
+
+{% if asset %}
+<div class="card">
+    <div class="card-title">附件（发票 / 照片 / 验收单等）</div>
+    {% if user|has_perm:'manage_assets' %}
+    <form method="post" action="{% url 'attachment_upload' asset.pk %}" enctype="multipart/form-data"
+          style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        {% csrf_token %}
+        <input type="file" name="files" multiple accept="{{ attachment_accept }}">
+        <button class="btn" type="submit">上传附件</button>
+        <span class="muted">单个文件不超过 {{ attachment_max_mb }}MB，支持 PDF / Office / 图片 / 压缩包</span>
+    </form>
+    {% endif %}
+    <div class="attach-list">
+        {% for att in attachments %}
+        <div class="attach-item">
+            <span class="attach-name" title="{{ att.name }}">{{ att.name }}</span>
+            <span class="attach-meta">{{ att.size_h }} · {{ att.uploaded_by }} · {{ att.uploaded_at|date:'Y-m-d H:i' }}</span>
+            <a class="btn btn-sm" href="{% url 'attachment_download' att.pk %}">下载</a>
+            {% if user|has_perm:'manage_assets' %}
+            <form method="post" action="{% url 'attachment_delete' att.pk %}"
+                  data-confirm="确认删除附件「{{ att.name }}」？此操作不可撤销。">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-danger btn-outline-danger" type="submit">删除</button>
+            </form>
+            {% endif %}
+        </div>
+        {% empty %}
+        <div class="attach-empty">暂无附件。</div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

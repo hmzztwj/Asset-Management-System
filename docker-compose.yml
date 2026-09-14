@@ -25,7 +25,7 @@ services:
       # Redis 缓存：登录锁定等跨进程状态共享；未来加 worker 无需再改代码
       - ASSETS_REDIS_URL=redis://redis:6379/0
     volumes:
-      - ./data:/app/data     # SQLite 数据库（把现有 db.sqlite3 拷到宿主机 ./data/ 下）
+      - ./data:/app/data     # 数据库 + 附件 + 运行日志（把现有 db.sqlite3 拷到宿主机 ./data/ 下）
       - ./backup:/app/backup # 自动备份目录（与页面「数据备份」设置对应）
     depends_on:
       - redis

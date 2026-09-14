@@ -64,6 +64,11 @@
 
     <div class="module" data-page-node-id="rKJR3CxtSPoqRPRvYbPa50">
         <h2 data-page-node-id="zJEj8QTMNTXrrB1i5nBofl">备份文件（共 {{ backups|length }} 份）</h2>
+        {% if not can_sensitive %}
+        <p class="help" style="padding:0 16px;" data-page-node-id="nsR8Xk2Qj3HqL5PvT1DwBm">
+            当前账号非超级管理员：可查看与生成备份，但<b>「下载」「恢复」仅超级管理员可用</b>。
+        </p>
+        {% endif %}
         <table style="width:100%;" data-page-node-id="yo4uJRharEloJpKajftA0a">
             <thead data-page-node-id="aZAnBxBU6YH51UtSZYLp9N">
                 <tr data-page-node-id="PByHJaC1BXbq6ZDaB20HYl">
@@ -80,12 +85,17 @@
                     <td data-page-node-id="kym0NLfENvXwW3gbFgC51u">{{ b.size_h }}</td>
                     <td data-page-node-id="fpjD9SNMfxYudAKn3bV7DS">{{ b.mtime|date:'Y-m-d H:i:s' }}</td>
                     <td data-page-node-id="iQ7P3iglixmsnM2GJXSdqX">
+                        {% if can_sensitive %}
                         <a class="button" href="{% url 'admin:backup_download' b.name %}" data-page-node-id="sLYES6fJEkESBIQIkGzCvN">下载</a>
-                        <form method="post" action="{% url 'admin:backup_restore' b.name %}" style="display:inline;"
-                              onsubmit="return confirm('确认从「{{ b.name }}」恢复整库？\n\n当前数据会先被自动备份一份，恢复后将回到该备份时刻的状态。');" data-page-node-id="lvAZcCS9CAp0guYvxiJ6gv">
-                            {% csrf_token %}
-                            <button type="submit" class="button" style="margin-left:6px;" data-page-node-id="GHLEWsoiLKKZ96HzjzVmXC">恢复</button>
-                        </form>
+                        {% else %}
+                        <span class="button" style="opacity:.45;cursor:not-allowed;" title="仅超级管理员可下载" data-page-node-id="sLYES6fJEkESBIQIkGzCvN">下载</span>
+                        {% endif %}
+                        {% if can_sensitive %}
+                        <button type="button" class="button" style="margin-left:6px;"
+                                onclick="openRestore('{{ b.name|escapejs }}')" data-page-node-id="GHLEWsoiLKKZ96HzjzVmXC">恢复</button>
+                        {% else %}
+                        <span class="button" style="margin-left:6px;opacity:.45;cursor:not-allowed;" title="仅超级管理员可恢复" data-page-node-id="GHLEWsoiLKKZ96HzjzVmXC">恢复</span>
+                        {% endif %}
                         <form method="post" action="{% url 'admin:backup_delete' b.name %}" style="display:inline;"
                               onsubmit="return confirm('确认删除备份「{{ b.name }}」？此操作不可撤销。');" data-page-node-id="yIPsHDwB52Ak2fETTcOUb1">
                             {% csrf_token %}
@@ -99,6 +109,45 @@
             </tbody>
         </table>
     </div>
+
+    {% if can_sensitive %}
+    <!-- 恢复整库的确认弹窗：必须手工输入确认口令 RESTORE 才会提交 -->
+    <div id="restore-mask" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.55);z-index:9999;">
+        <div style="max-width:460px;margin:12vh auto;background:#fff;border-radius:10px;padding:20px 22px;box-shadow:0 12px 40px rgba(0,0,0,.25);">
+            <h3 style="margin:0 0 10px;color:#b91c1c;">⚠️ 恢复整库（危险操作）</h3>
+            <p style="margin:0 0 8px;line-height:1.7;">
+                即将用备份 <b id="restore-name"></b> 覆盖当前数据库。<br>
+                当前数据会先被自动另存为一份新备份，恢复后系统将回到该备份时刻的状态。
+            </p>
+            <p style="margin:0 0 8px;line-height:1.7;">
+                请输入 <code>{{ restore_word }}</code> 以确认：
+            </p>
+            <form method="post" id="restore-form">
+                {% csrf_token %}
+                <input type="text" name="confirm_word" id="restore-word" autocomplete="off"
+                       style="width:100%;padding:6px 8px;box-sizing:border-box;" placeholder="{{ restore_word }}">
+                <div style="margin-top:14px;text-align:right;">
+                    <button type="button" class="button" onclick="closeRestore()">取消</button>
+                    <button type="submit" class="button" style="margin-left:6px;background:#b91c1c;border-color:#b91c1c;color:#fff;">确认恢复</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script>
+    function openRestore(name) {
+        var mask = document.getElementById('restore-mask');
+        document.getElementById('restore-name').textContent = name;
+        document.getElementById('restore-word').value = '';
+        document.getElementById('restore-form').action =
+            "{% url 'admin:backup_restore' '__NAME__' %}".replace('__NAME__', encodeURIComponent(name));
+        mask.style.display = 'block';
+        document.getElementById('restore-word').focus();
+    }
+    function closeRestore() {
+        document.getElementById('restore-mask').style.display = 'none';
+    }
+    </script>
+    {% endif %}
 
 </div>
 {% endblock %}

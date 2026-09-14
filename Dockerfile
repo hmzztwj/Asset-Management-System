@@ -20,4 +20,8 @@ RUN sed -i 's/\r$//' docker-entrypoint.sh \
 
 EXPOSE 8000
 
+# 容器健康检查：探测登录页是否可访问（内网部署不需要 curl，用 Python 标准库）
+HEALTHCHECK --interval=60s --timeout=5s --start-period=40s --retries=3 \
+    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/login/', timeout=4).status == 200 else 1)"
+
 ENTRYPOINT ["./docker-entrypoint.sh"]

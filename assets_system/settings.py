@@ -92,6 +92,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'assets.context_processors.messages_json',
                 'assets.context_processors.device_type',
+                'assets.context_processors.overdue_alert',
             ],
         },
     },
@@ -116,8 +117,18 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': _DB_PATH,
+        # SQLite 并发加固：gunicorn 为多线程，写冲突时不再立刻抛
+        # "database is locked"，而是最多等待 20 秒（配合 apps.py 里开启的 WAL）。
+        'OPTIONS': {
+            'timeout': 20,
+        },
     }
 }
+
+# 附件存放目录（发票/照片等），默认放在 data/ 下，与数据库同在挂载卷内，
+# 重建容器不丢；可用 ASSETS_MEDIA_ROOT 覆盖。
+MEDIA_ROOT = Path(os.environ.get('ASSETS_MEDIA_ROOT', str(BASE_DIR / 'data' / 'media')))
+MEDIA_URL = '/media/'
 
 # 缓存后端：
 # - 默认 LocMemCache（单进程够用，适合本机 runserver / 单 worker 部署）
@@ -166,3 +177,40 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ---- 运行日志：控制台 + 按大小轮转的文件 ----
+# 容器/终端日志被清理后仍可回溯（文件默认落在 data/logs/app.log，随数据卷一起持久化）
+LOGS_DIR = Path(os.environ.get('ASSETS_LOG_DIR', str(BASE_DIR / 'data' / 'logs')))
+os.makedirs(LOGS_DIR, exist_ok=True)
+
+LOG_LEVEL = (os.environ.get('ASSETS_LOG_LEVEL') or 'INFO').upper()
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{asctime}] {levelname} {name}: {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': str(LOGS_DIR / 'app.log'),
+            'maxBytes': 5 * 1024 * 1024,   # 单文件 5MB
+            'backupCount': 5,              # 最多保留 5 个历史文件
+            'encoding': 'utf-8',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {'handlers': ['console', 'file'], 'level': LOG_LEVEL},
+    'loggers': {
+        'django.request': {'handlers': ['console', 'file'], 'level': 'WARNING', 'propagate': False},
+        'django.security': {'handlers': ['console', 'file'], 'level': 'WARNING', 'propagate': False},
+    },
+}

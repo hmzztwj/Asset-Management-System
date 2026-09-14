@@ -34,6 +34,35 @@
     </div>
 </div>
 
+<!-- 逾期未还提醒 -->
+{% if overdue_records %}
+<div class="card">
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>⚠️ 逾期未还提醒（共 {{ overdue }} 项）</span>
+        <a class="btn btn-sm btn-outline" href="{% url 'requisition' %}?status=逾期">查看全部</a>
+    </div>
+    <div class="table-wrap">
+    <table class="table">
+        <thead><tr><th>资产</th><th>领用人</th><th>部门</th><th>预计归还</th><th>超期</th></tr></thead>
+        <tbody>
+            {% for r in overdue_records %}
+            <tr>
+                <td>{{ r.asset.name }} <span class="muted">{{ r.asset.asset_id }}</span></td>
+                <td>{{ r.user }}</td>
+                <td>{{ r.department.name|default:'—' }}</td>
+                <td>{{ r.due_date|date:'Y-m-d' }}</td>
+                <td><span class="badge red">超期 {{ r.overdue_days }} 天</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% if overdue > overdue_records|length %}
+    <div class="muted" style="padding:8px 0;">仅列出超期最久的 {{ overdue_records|length }} 项，其余请点「查看全部」。</div>
+    {% endif %}
+</div>
+{% endif %}
+
 <!-- 主图表区：部门占比 + 部门数量 -->
 <div class="chart-grid">
     <div class="card">

@@ -1,26 +1,33 @@
 import csv
 import datetime
 import math
+import os
 from decimal import Decimal, InvalidOperation
 from functools import wraps
+from urllib.parse import urlencode
 
 from openpyxl import Workbook
 from openpyxl import load_workbook
 
 from django.contrib import messages
-from django.contrib.auth import authenticate, login, update_session_auth_hash
+from django.contrib.auth import authenticate, login, logout as auth_logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
-from django.http import HttpResponse
+from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
-from .models import Department, Asset, Requisition, AssetChange, Role, UserProfile
+from . import oplog
+from .models import (
+    Department, Asset, Requisition, AssetChange, Role, UserProfile,
+    AssetAttachment, OperationLog,
+)
 from .permissions import perm_required
+from .qr import qr_svg
 
 # 登录安全：连续输错密码锁定
 LOGIN_MAX_ATTEMPTS = 5        # 连续输错次数上限
@@ -29,6 +36,46 @@ LOGIN_LOCK_SECONDS = 5 * 60   # 锁定时长（秒）
 
 def _login_fail_key(username):
     return 'login_fail_' + (username or '').strip().lower()
+
+
+# 资产编辑留痕：参与"字段级变更明细"的字段与中文标签
+ASSET_FIELD_LABELS = {
+    'name': '资产名称',
+    'category': '资产类别',
+    'specification': '规格',
+    'configuration': '配置',
+    'responsible': '责任人',
+    'serial': '序列号',
+    'department': '所属部门',
+    'user': '实际使用人',
+    'status': '使用状态',
+    'price': '资产价值',
+    'purchase_date': '购置日期',
+    'location': '存放位置',
+}
+
+
+def _asset_snapshot(asset):
+    """把资产关键字段拍成 {字段名: 值} 快照，供变更前后对比。"""
+    return {
+        'name': asset.name,
+        'category': asset.category,
+        'specification': asset.specification,
+        'configuration': asset.configuration,
+        'responsible': asset.responsible,
+        'serial': asset.serial,
+        'department': asset.department.name if asset.department_id else '',
+        'user': asset.user,
+        'status': asset.status,
+        'price': asset.price,
+        'purchase_date': asset.purchase_date.strftime('%Y-%m-%d') if asset.purchase_date else '',
+        'location': asset.location,
+    }
+
+
+def _asset_label(asset):
+    """日志里标识一台资产的统一写法。"""
+    return f'{asset.asset_id} {asset.name}'
 
 
 # Excel 表头别名映射（兼容不同写法）
@@ -126,6 +173,8 @@ def login_view(request):
         locked_until = cache.get(lock_key)
         if locked_until:
             remain = max(1, math.ceil((locked_until - timezone.now()).total_seconds() / 60))
+            oplog.log(request, 'auth', 'login_fail', target=username or '（空用户名）',
+                      detail=f'账号处于锁定状态，拒绝登录（剩余约 {remain} 分钟）')
             return render(request, 'login.html', {
                 'error': True,
                 'error_msg': f'密码连续输错 {LOGIN_MAX_ATTEMPTS} 次，账号已临时锁定，请约 {remain} 分钟后再试。',
@@ -147,6 +196,8 @@ def login_view(request):
             if profile is not None and not user.is_superuser:
                 profile.session_key = request.session.session_key
                 profile.save(update_fields=['session_key'])
+            oplog.log(request, 'auth', 'login', target=user.username,
+                      detail=f'登录成功（{"记住我 30 天" if remember else "关闭浏览器即失效"}）')
             nxt = request.POST.get('next') or request.GET.get('next') or '/'
             if not url_has_allowed_host_and_scheme(
                 nxt, allowed_hosts={request.get_host()}, require_https=request.is_secure()
@@ -161,15 +212,27 @@ def login_view(request):
                       LOGIN_LOCK_SECONDS)
             cache.delete(fail_key)
             error_msg = f'密码连续输错 {LOGIN_MAX_ATTEMPTS} 次，账号已锁定 5 分钟，请稍后再试。'
+            oplog.log(request, 'auth', 'login_fail', target=username or '（空用户名）',
+                      detail=f'连续输错 {LOGIN_MAX_ATTEMPTS} 次，账号锁定 {LOGIN_LOCK_SECONDS // 60} 分钟')
         else:
             cache.set(fail_key, fails, LOGIN_LOCK_SECONDS)
             error_msg = (f'用户名或密码不正确，请重试。'
                          f'（第 {fails}/{LOGIN_MAX_ATTEMPTS} 次尝试，连续输错 {LOGIN_MAX_ATTEMPTS} 次将锁定 5 分钟）')
+            oplog.log(request, 'auth', 'login_fail', target=username or '（空用户名）',
+                      detail=f'用户名或密码不正确（第 {fails}/{LOGIN_MAX_ATTEMPTS} 次）')
         return render(request, 'login.html', {
             'error': True, 'error_msg': error_msg, 'username': username,
         })
 
     return render(request, 'login.html', {'kicked': kicked})
+
+
+def logout_view(request):
+    """退出登录（记录日志后走 Django 的 logout）。"""
+    if request.user.is_authenticated:
+        oplog.log(request, 'auth', 'logout', target=request.user.username, detail='主动退出登录')
+    auth_logout(request)
+    return redirect('login')
 
 
 @login_required
@@ -190,6 +253,8 @@ def password_change(request):
                 request.user.set_password(new_password)
                 request.user.save()
                 update_session_auth_hash(request, request.user)
+                oplog.log(request, 'auth', 'update', target=request.user.username,
+                          detail='用户自行修改登录密码')
                 messages.success(request, '密码修改成功。')
                 return redirect('dashboard')
     context = {'page_title': '修改密码', 'active': 'dashboard'}
@@ -239,6 +304,14 @@ def dashboard(request):
     overdue = Requisition.objects.filter(
         status='借出', due_date__lt=timezone.localdate()
     ).count()
+    # 逾期清单（按超期天数倒序），供首页「逾期提醒」卡片展示与跳转
+    overdue_records = list(
+        Requisition.objects.filter(status='借出', due_date__lt=timezone.localdate())
+        .select_related('asset', 'department')
+        .order_by('due_date')[:8]
+    )
+    for r in overdue_records:
+        r.overdue_days = (timezone.localdate() - r.due_date).days
     total_value = Asset.objects.aggregate(v=Sum('price'))['v'] or 0
 
     context = {
@@ -254,6 +327,7 @@ def dashboard(request):
         'in_use': in_use,
         'total_departments': total_departments,
         'overdue': overdue,
+        'overdue_records': overdue_records,
         'total_value': total_value,
         'pending_return': pending_return,
         'recent_changes': AssetChange.objects.select_related('asset')[:6],
@@ -263,9 +337,11 @@ def dashboard(request):
     return render(request, 'dashboard.html', context)
 
 
-# ---------- 资产库模块 ----------
-@perm_required('view_assets')
-def library(request):
+def _filtered_assets(request):
+    """按 URL 查询参数过滤资产库，返回 (queryset, filters)。
+
+    资产库列表与「标签打印」共用同一套筛选口径，避免两处规则漂移。
+    """
     status = request.GET.get('status', '')
     category = request.GET.get('category', '')
     dept_id = request.GET.get('department', '')
@@ -274,8 +350,6 @@ def library(request):
     field = request.GET.get('field', 'asset')
     if field not in ('asset', 'person'):
         field = 'asset'
-    sort = request.GET.get('sort', 'asset_id')
-    direction = request.GET.get('dir', 'asc')
 
     qs = Asset.objects.select_related('department')
     if status:
@@ -291,6 +365,28 @@ def library(request):
         else:
             # 资产名称 / 资产编号 模糊匹配（默认）
             qs = qs.filter(Q(name__icontains=keyword) | Q(asset_id__icontains=keyword))
+
+    filters = {
+        'status': status,
+        'category': category,
+        'department': dept_id,
+        'q': keyword,
+        'field': field,
+    }
+    return qs, filters
+
+
+# ---------- 资产库模块 ----------
+@perm_required('view_assets')
+def library(request):
+    qs, filters = _filtered_assets(request)
+    status = filters['status']
+    category = filters['category']
+    dept_id = filters['department']
+    keyword = filters['q']
+    field = filters['field']
+    sort = request.GET.get('sort', 'asset_id')
+    direction = request.GET.get('dir', 'asc')
 
     # 排序白名单
     sort_map = {
@@ -348,13 +444,7 @@ def library(request):
         'qs_no_perpage': qs_no_perpage,
         'per_page': per_page,
         'per_page_choices': (10, 20, 50, 100),
-        'filters': {
-            'status': status,
-            'category': category,
-            'department': dept_id,
-            'q': keyword,
-            'field': field,
-        },
+        'filters': filters,
     }
     return render(request, 'library.html', context)
 
@@ -376,6 +466,16 @@ def assets_bulk_delete(request):
             deleted_n = len(deletable)
             if deleted_n:
                 Asset.objects.filter(pk__in=deletable).delete()
+            if deleted_n or protected:
+                detail_parts = [f'已删除 {deleted_n} 项']
+                if protected:
+                    detail_parts.append(
+                        f'因存在领用/变更历史被跳过 {len(protected)} 项：'
+                        f'{", ".join(protected[:20])}'
+                    )
+                oplog.log(request, 'asset', 'delete',
+                          target=f'批量删除（{deleted_n} 项）',
+                          detail='；'.join(detail_parts))
             if protected:
                 messages.warning(
                     request,
@@ -424,13 +524,16 @@ def asset_create(request):
         elif price_value is None:
             messages.error(request, '资产价值必须是数字。')
         else:
-            Asset.objects.create(
+            created = Asset.objects.create(
                 asset_id=asset_id, name=name, category=category,
                 specification=specification, configuration=configuration,
                 responsible=responsible, serial=serial,
                 department_id=department_id, user=user, status=status,
                 price=price, purchase_date=purchase_date, location=location,
             )
+            detail = oplog.diff({}, _asset_snapshot(created), ASSET_FIELD_LABELS)
+            oplog.log(request, 'asset', 'create', target=_asset_label(created),
+                      detail=f'新增资产；{detail}' if detail else '新增资产')
             messages.success(request, f'资产 {name} 新增成功。')
             return redirect('library')
     context = {
@@ -457,6 +560,8 @@ def _missing_required_asset(data):
 def asset_update(request, pk):
     asset = get_object_or_404(Asset, pk=pk)
     if request.method == 'POST':
+        # 变更前快照：用于生成"字段：旧值 → 新值"的操作日志明细
+        before = _asset_snapshot(asset)
         asset.name = request.POST.get('name', asset.name).strip()
         asset.category = request.POST.get('category', asset.category)
         asset.specification = request.POST.get('specification', '').strip()
@@ -485,12 +590,20 @@ def asset_update(request, pk):
             messages.error(request, '资产价值必须是数字。')
         else:
             asset.save()
+            # 刷新以拿到最新的关联部门名称，再做前后对比（若字段无变化则不写日志）
+            asset.refresh_from_db()
+            diff_text = oplog.diff(before, _asset_snapshot(asset), ASSET_FIELD_LABELS)
+            if diff_text:
+                oplog.log(request, 'asset', 'update', target=_asset_label(asset), detail=diff_text)
             messages.success(request, f'资产 {asset.name} 更新成功。')
             return redirect('library')
     context = {'asset': asset, 'departments': Department.objects.all(),
                'department_options': [{'id': d.id, 'text': d.name} for d in Department.objects.all()],
                'category_options': [{'id': c[0], 'text': c[0]} for c in Asset.CATEGORY_CHOICES],
                'status_options': [{'id': s[0], 'text': s[0]} for s in Asset.STATUS_CHOICES],
+               'attachments': asset.attachments.all(),
+               'attachment_accept': ','.join(AssetAttachment.ALLOWED_EXT),
+               'attachment_max_mb': AssetAttachment.MAX_SIZE // (1024 * 1024),
                'page_title': '编辑资产', 'active': 'library'}
     return render(request, 'asset_form.html', context)
 
@@ -514,7 +627,9 @@ def asset_delete(request, pk):
                 '请先删除或转移其关联的领用/变更记录后再操作。',
             )
         else:
+            label = _asset_label(asset)
             asset.delete()
+            oplog.log(request, 'asset', 'delete', target=label, detail='删除资产及其全部信息')
             messages.success(request, f'资产 {asset.name} 已删除。')
     return redirect('library')
 
@@ -659,6 +774,11 @@ def asset_import(request):
             msg += f'，跳过（编号已存在）{skipped} 条'
         if warnings:
             msg += f'，{len(warnings)} 处提示'
+        oplog.log(
+            request, 'asset', 'import', target=upload.name,
+            detail=(f'成功导入 {imported} 条，编号已存在跳过 {skipped} 条'
+                    + (f'，{len(warnings)} 处提示：' + '；'.join(warnings[:20]) if warnings else '')),
+        )
         (messages.warning if warnings else messages.success)(request, msg)
 
     context = {'page_title': '导入资产', 'active': 'library', 'result': result}
@@ -785,12 +905,18 @@ def department_form(request, pk=None):
                 department.description = description
                 department.parent_id = parent_id
                 department.save()
+                oplog.log(request, 'org', 'update', target=f'部门 {name}',
+                          detail=(f'负责人：{manager or "（空）"}；'
+                                  f'上级部门：{department.parent.name if department.parent_id else "（无）"}'))
                 messages.success(request, f'部门 {name} 更新成功。')
             else:
-                Department.objects.create(
+                created_dept = Department.objects.create(
                     name=name, manager=manager, description=description,
                     parent_id=parent_id,
                 )
+                oplog.log(request, 'org', 'create', target=f'部门 {name}',
+                          detail=(f'负责人：{manager or "（空）"}；'
+                                  f'上级部门：{created_dept.parent.name if created_dept.parent_id else "（无）"}'))
                 messages.success(request, f'部门 {name} 创建成功。')
             return redirect(f"{reverse('org')}?mode={mode}")
 
@@ -824,7 +950,9 @@ def department_delete(request, pk):
         else:
             from django.db import transaction
             with transaction.atomic():
+                dept_name = department.name
                 department.delete()
+            oplog.log(request, 'org', 'delete', target=f'部门 {dept_name}', detail='删除部门')
             messages.success(request, f'部门 {department.name} 已删除。')
     return redirect(f"{reverse('org')}?mode={mode}")
 
@@ -941,6 +1069,11 @@ def requisition_create(request):
                     department_id=department_id,
                     purpose=purpose, due_date=due_date,
                 )
+                oplog.log(
+                    request, 'requisition', 'create', target=_asset_label(asset),
+                    detail=(f'领用人：{user}；实际使用人：{actual_user or "同领用人"}；'
+                            f'预计归还：{due_date}；用途：{purpose}'),
+                )
                 messages.success(
                     request,
                     f'资产 {asset.name} 已领用给 {user}，责任人、实际使用人与所属部门已同步到资产库。',
@@ -958,6 +1091,9 @@ def requisition_return(request, pk):
             record.status = '已归还'
             record.return_date = timezone.localdate()
             record.save()
+        oplog.log(request, 'requisition', 'update', target=_asset_label(record.asset),
+                  detail=(f'归还登记：领用人 {record.user}；归还日期 {record.return_date}；'
+                          f'资产责任人/实际使用人已复位为「{Requisition.DEFAULT_OWNER}」'))
         messages.success(request, f'资产 {record.asset.name} 已归还。')
     return redirect('requisition')
 
@@ -966,6 +1102,13 @@ def requisition_return(request, pk):
 def requisition_edit(request, pk):
     record = get_object_or_404(Requisition, pk=pk)
     if request.method == 'POST':
+        before = {
+            'user': record.user, 'actual_user': record.actual_user,
+            'department': record.department.name if record.department_id else '',
+            'purpose': record.purpose,
+            'due_date': record.due_date.strftime('%Y-%m-%d') if record.due_date else '',
+            'status': record.status,
+        }
         record.user = request.POST.get('user', record.user).strip()
         record.actual_user = request.POST.get('actual_user', record.actual_user).strip()
         record.department_id = request.POST.get('department') or None
@@ -985,6 +1128,20 @@ def requisition_edit(request, pk):
             messages.error(request, '请选择预计归还日期。')
         else:
             record.save()
+            after = {
+                'user': record.user, 'actual_user': record.actual_user,
+                'department': record.department.name if record.department_id else '',
+                'purpose': record.purpose,
+                'due_date': record.due_date.strftime('%Y-%m-%d') if record.due_date else '',
+                'status': record.status,
+            }
+            diff_text = oplog.diff(before, after, {
+                'user': '领用人', 'actual_user': '实际使用人', 'department': '领用部门',
+                'purpose': '领用用途', 'due_date': '预计归还', 'status': '状态',
+            })
+            if diff_text:
+                oplog.log(request, 'requisition', 'update',
+                          target=_asset_label(record.asset), detail=diff_text)
             messages.success(request, '领用记录已更新。')
         return redirect('requisition')
     context = {
@@ -1003,7 +1160,10 @@ def requisition_delete(request, pk):
         from django.db import transaction
         with transaction.atomic():
             # 复位资产状态与归属的逻辑在 Requisition.delete() 中统一处理
+            target = _asset_label(record.asset)
+            detail = f'删除领用记录（领用人：{record.user}；状态：{record.display_status}）'
             record.delete()
+        oplog.log(request, 'requisition', 'delete', target=target, detail=detail)
         messages.success(request, '领用记录已删除。')
     return redirect('requisition')
 
@@ -1137,6 +1297,16 @@ def change_create(request):
                         messages.warning(request, '变更记录已保存，但资产同步未完成：' + (msg2 or ''))
                     else:
                         messages.success(request, f'资产 {asset.name} 变更记录已保存，并同步到资产库。')
+                    oplog.log(
+                        request, 'change', 'create', target=_asset_label(asset),
+                        detail=(f'{change_type}：{old_value} → {new_value}；原因：{reason}；'
+                                f'经办人：{changed_by}'
+                                + (f'；责任人：{old_responsible or "—"} → {new_responsible or "—"}'
+                                   if change_type == '部门转移' else '')
+                                + (f'；实际使用人：{old_user or "—"} → {new_user or "—"}'
+                                   if change_type == '部门转移' else '')
+                                + ('' if ok2 else '（资产同步未完成）')),
+                    )
                 return redirect('change')
     return redirect('change')
 
@@ -1236,6 +1406,10 @@ def change_update(request, pk):
             messages.success(request, '变更记录已更新，并同步到资产库。')
         else:
             messages.warning(request, '变更记录已更新，但资产同步未完成：' + (msg2 or ''))
+        oplog.log(request, 'change', 'update', target=_asset_label(ch.asset),
+                  detail=(f'修改变更记录 → {ch.change_type}：{ch.old_value} → {ch.new_value}；'
+                          f'原因：{ch.reason}'
+                          + ('' if ok2 else '（资产同步未完成）')))
         return redirect('change')
     context = {'ch': ch, 'page_title': '编辑变更', 'active': 'change'}
     return render(request, 'change_form.html', context)
@@ -1245,7 +1419,10 @@ def change_update(request, pk):
 def change_delete(request, pk):
     ch = get_object_or_404(AssetChange, pk=pk)
     if request.method == 'POST':
+        target = _asset_label(ch.asset)
+        detail = f'删除变更记录（{ch.change_type}：{ch.old_value} → {ch.new_value}）'
         ch.delete()
+        oplog.log(request, 'change', 'delete', target=target, detail=detail)
         messages.success(request, '变更记录已删除。')
     return redirect('change')
 
@@ -1316,6 +1493,9 @@ def user_create(request):
             )
             role_obj = Role.objects.filter(pk=role_id).first()
             _apply_role(user, role_obj)
+            oplog.log(request, 'user', 'create', target=f'用户 {username}',
+                      detail=(f'姓名：{first_name or "（空）"}；邮箱：{email or "（空）"}；'
+                              f'角色：{role_obj.name if role_obj else "（未分配）"}'))
             messages.success(request, f'用户 {username} 创建成功。')
             return redirect('user_list')
     return render(request, 'user_form.html', ctx)
@@ -1362,6 +1542,10 @@ def user_update(request, pk):
                 if password:
                     user.set_password(password)
                     user.save()
+                oplog.log(request, 'user', 'update', target=f'用户 {user.username}',
+                          detail=(f'（本人资料）姓名：{first_name or "（空）"}；邮箱：{email or "（空）"}；'
+                                  f'角色：{role_obj.name if role_obj else "（未分配）"}'
+                                  + ('；已重置密码' if password else '')))
                 messages.success(request, '个人信息已更新。')
             return redirect('user_list')
 
@@ -1378,6 +1562,11 @@ def user_update(request, pk):
         if password:
             user.set_password(password)
             user.save()
+        oplog.log(request, 'user', 'update', target=f'用户 {user.username}',
+                  detail=(f'姓名：{first_name or "（空）"}；邮箱：{email or "（空）"}；'
+                          f'启用：{"是" if is_active else "否"}；'
+                          f'角色：{role_obj.name if role_obj else "（未分配）"}'
+                          + ('；已重置密码' if password else '')))
         messages.success(request, f'用户 {user.username} 更新成功。')
         return redirect('user_list')
 
@@ -1397,7 +1586,9 @@ def user_delete(request, pk):
         elif user.is_superuser:
             messages.error(request, '不能删除超级管理员账号，请先将其降级。')
         else:
+            uname = user.username
             user.delete()
+            oplog.log(request, 'user', 'delete', target=f'用户 {uname}', detail='删除用户及其档案')
             messages.success(request, f'用户 {user.username} 已删除。')
     return redirect('user_list')
 
@@ -1447,6 +1638,8 @@ def role_create(request):
         else:
             role = Role.objects.create(name=name, code=code, description=description)
             _save_perm_fields(role, request.POST)
+            oplog.log(request, 'user', 'create', target=f'角色 {name}',
+                      detail=f'编码：{code}；权限：{"、".join(_perm_labels(role)) or "（无）"}')
             messages.success(request, f'角色 {name} 创建成功。')
             return redirect('role_list')
     context = {'page_title': '新增角色', 'active': 'roles', 'edit_role': None,
@@ -1467,6 +1660,8 @@ def role_update(request, pk):
             role.description = description
             role.save()
             _save_perm_fields(role, request.POST)
+            oplog.log(request, 'user', 'update', target=f'角色 {name}',
+                      detail=f'权限：{"、".join(_perm_labels(role)) or "（无）"}')
             messages.success(request, f'角色 {name} 更新成功。')
             return redirect('role_list')
     context = {'page_title': '编辑角色', 'active': 'roles', 'edit_role': role,
@@ -1489,6 +1684,174 @@ def role_delete(request, pk):
         elif role.profiles.exists():
             messages.error(request, f'还有 {role.profiles.count()} 个用户使用该角色，请先调整这些用户的角色。')
         else:
+            rname = role.name
             role.delete()
+            oplog.log(request, 'user', 'delete', target=f'角色 {rname}', detail='删除角色')
             messages.success(request, f'角色 {role.name} 已删除。')
     return redirect('role_list')
+
+
+def _perm_labels(role):
+    """把角色已开启的权限翻译成中文标签列表，用于操作日志。"""
+    labels = []
+    for field, label in _PERM_FIELDS:
+        if getattr(role, field, False):
+            labels.append(label)
+    return labels
+
+
+# ---------- 资产二维码 / 标签打印 ----------
+@perm_required('view_assets')
+def asset_qr(request, pk):
+    """返回单个资产的二维码图片（SVG）。
+
+    默认把「用手机扫码即可打开该资产在资产库中的搜索页」的地址编码进去，
+    扫码后直接定位到资产；``?data=code`` 时改为只编码资产编号纯文本。
+    二维码在本机离线生成，不依赖任何外部服务。
+    """
+    asset = get_object_or_404(Asset, pk=pk)
+    if request.GET.get('data') == 'code':
+        payload = asset.asset_id
+    else:
+        base = request.build_absolute_uri(reverse('library'))
+        payload = base + '?' + urlencode({'field': 'asset', 'q': asset.asset_id})
+    response = HttpResponse(qr_svg(payload), content_type='image/svg+xml')
+    response['Cache-Control'] = 'public, max-age=86400'
+    return response
+
+
+@perm_required('view_assets')
+def asset_labels(request):
+    """标签打印页：把所选（或当前筛选）资产排成便于裁剪张贴的标签。
+
+    取值优先级：
+    1. ``?ids=1,2,3`` —— 资产库勾选后点「打印标签」（最常用）；
+    2. 否则复用资产库的筛选参数（状态/类别/部门/关键字），最多 200 张。
+    """
+    ids_raw = (request.GET.get('ids') or '').strip()
+    if ids_raw:
+        ids = [int(x) for x in ids_raw.split(',') if x.strip().isdigit()]
+        assets = list(
+            Asset.objects.select_related('department').filter(pk__in=ids).order_by('asset_id')
+        )
+    else:
+        qs, _ = _filtered_assets(request)
+        assets = list(qs.order_by('asset_id')[:200])
+
+    context = {
+        'assets': assets,
+        'page_title': '资产标签打印',
+        'active': 'library',
+    }
+    return render(request, 'asset_labels.html', context)
+
+
+# ---------- 资产附件 ----------
+@perm_required('manage_assets')
+def attachment_upload(request, pk):
+    """为资产上传附件（支持一次多选）。"""
+    asset = get_object_or_404(Asset, pk=pk)
+    if request.method == 'POST':
+        files = request.FILES.getlist('files')
+        if not files:
+            messages.error(request, '请先选择要上传的文件。')
+            return redirect('asset_update', pk=pk)
+
+        allowed_text = '、'.join(AssetAttachment.ALLOWED_EXT)
+        max_mb = AssetAttachment.MAX_SIZE // (1024 * 1024)
+        ok, errors = 0, []
+        for f in files:
+            ext = os.path.splitext(f.name)[1].lower()
+            if ext not in AssetAttachment.ALLOWED_EXT:
+                errors.append(f'「{f.name}」格式不允许（支持：{allowed_text}）')
+                continue
+            if f.size > AssetAttachment.MAX_SIZE:
+                errors.append(f'「{f.name}」超过 {max_mb}MB 上限')
+                continue
+            att = AssetAttachment.objects.create(
+                asset=asset, file=f, name=f.name[:200], size=f.size,
+                uploaded_by=(request.user.first_name or request.user.username),
+            )
+            oplog.log(request, 'attachment', 'create', target=_asset_label(asset),
+                      detail=f'上传附件：{att.name}（{att.size_h}）')
+            ok += 1
+
+        if ok:
+            messages.success(request, f'已上传 {ok} 个附件。')
+        for e in errors:
+            messages.error(request, e)
+    return redirect('asset_update', pk=pk)
+
+
+@perm_required('manage_assets')
+def attachment_delete(request, pk):
+    att = get_object_or_404(AssetAttachment, pk=pk)
+    asset_pk = att.asset_id
+    if request.method == 'POST':
+        name = att.name
+        asset_label = _asset_label(att.asset)
+        try:
+            att.file.delete(save=False)  # 一并删除物理文件
+        except Exception:  # noqa: BLE001 — 文件已丢失也要能删记录
+            pass
+        att.delete()
+        oplog.log(request, 'attachment', 'delete', target=asset_label, detail=f'删除附件：{name}')
+        messages.success(request, f'附件「{name}」已删除。')
+    return redirect('asset_update', pk=asset_pk)
+
+
+@perm_required('view_assets')
+def attachment_download(request, pk):
+    """附件下载：走登录 + 权限校验，不直接暴露媒体目录。"""
+    att = get_object_or_404(AssetAttachment, pk=pk)
+    try:
+        path = att.file.path
+    except Exception:  # noqa: BLE001
+        raise Http404('附件路径无效')
+    if not os.path.exists(path):
+        raise Http404('附件文件已丢失')
+    return FileResponse(
+        open(path, 'rb'), as_attachment=True,
+        filename=att.name or os.path.basename(path),
+    )
+
+
+# ---------- 操作日志 ----------
+@admin_required
+def oplog_list(request):
+    """操作日志查询页（管理员）。支持按模块/动作/关键字/日期区间筛选。"""
+    category = request.GET.get('category', '')
+    action = request.GET.get('action', '')
+    keyword = request.GET.get('q', '').strip()
+    start = request.GET.get('start', '').strip()
+    end = request.GET.get('end', '').strip()
+
+    qs = OperationLog.objects.all()
+    if category:
+        qs = qs.filter(category=category)
+    if action:
+        qs = qs.filter(action=action)
+    if keyword:
+        qs = qs.filter(
+            Q(operator__icontains=keyword) | Q(target__icontains=keyword)
+            | Q(detail__icontains=keyword) | Q(ip__icontains=keyword)
+        )
+    if start:
+        qs = qs.filter(created_at__date__gte=start)
+    if end:
+        qs = qs.filter(created_at__date__lte=end)
+
+    paginator = Paginator(qs, 50)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    context = {
+        'page_obj': page_obj,
+        'records': page_obj.object_list,
+        'category_options': OperationLog.CATEGORY_CHOICES,
+        'action_options': OperationLog.ACTION_CHOICES,
+        'filters': {'category': category, 'action': action, 'q': keyword, 'start': start, 'end': end},
+        'total_logs': OperationLog.objects.count(),
+        'page_title': '操作日志',
+        'active': 'oplog',
+    }
+    return render(request, 'oplog.html', context)

@@ -7,6 +7,7 @@
 ### 📊 数据总览
 - 资产总数、总价值、在用/库存数量一目了然
 - 领用中、逾期未还统计（逾期由归还日期动态推导，口径统一）
+- **逾期主动提醒**：首页列出超期最久的资产清单（含超期天数）；任意页面顶部有全局提醒条，侧栏「资产领用」带红色数量徽标
 
 ### 🗃️ 资产库
 - 资产台账：编号、名称、类别、规格、配置、序列号、价值、存放位置等
@@ -14,6 +15,15 @@
 - 组合筛选：状态 / 类别 / 部门，支持排序、分页（每页 10/20/50/100 条）
 - 单条新增/编辑/删除、勾选批量删除（有领用/变更历史的资产受级联保护，禁止误删）
 - Excel 批量导入（提供模板下载，导入失败整批回滚）；按当前筛选条件导出 CSV
+- **资产二维码 / 标签打印**：列表右侧实时显示二维码缩略图，点开即为该资产的打印标签页；工具栏「🖨 打印标签」可打印勾选项（未勾选则按当前筛选条件打印）。二维码为**本机离线生成**（SVG，打印不失真），扫码直接跳转到该资产的台账检索页
+- **附件留证**：资产编辑页可上传发票 / 实物照片 / 验收单等（单文件 ≤ 20MB，类型白名单校验），下载受登录与权限保护，不直接暴露存储目录
+
+### 📜 操作日志
+- 全局审计：记录**谁、在什么时候、对什么、做了什么**，入口在侧栏「系统管理 → 操作日志」（仅管理员可见，后台也有一份只读列表）
+- 覆盖范围：登录成功 / 登录失败（含锁定与越权尝试）、退出登录、修改密码、资产新增 / 修改 / 删除 / 批量删除 / Excel 导入、领用登记与归还、变更记录增删改、组织架构增删改、用户与角色增删改、备份生成 / 恢复 / 下载 / 删除、附件上传与删除
+- **资产编辑字段级留痕**：修改资产时自动记录「字段：旧值 → 新值」（如「责任人：王五 → 赵六」），字段无变化则不产生噪音日志
+- 支持按模块 / 动作 / 关键词（操作人或对象或详情或 IP）/ 日期区间筛选，分页展示
+- 日志写入失败绝不影响主业务流程（内部吞掉异常）
 
 ### 🏢 组织架构
 - 部门树状结构（支持上下级），负责人与描述
@@ -46,16 +56,18 @@
 - **一键手动备份**：以 SQLite 在线备份 API 生成整库一致性快照，包含资产 / 部门 / 领用 / 变更 / 用户 / 角色全部数据，存入项目根 `backup/` 文件夹
 - **自动备份**：可开关；频率支持「每 1 天 / 每 3 天 / 每 7 天 / 每次数据库变动」
 - 备份文件名以日期为主（同日多次追加时间）；`backup/` 内超过 9 份自动删除最旧的
-- 备份列表支持**下载**（下载时可另存到任意位置）、**恢复**（恢复前自动另存当前库并二次确认）、删除
+- 备份列表支持下载、恢复、删除
+- **权限收紧**：备份文件含全部账号密码哈希，「**下载**」与「**恢复**」**仅超级管理员**可用（非超管按钮禁用，后端同时二次校验）；恢复还必须在弹窗中手工输入 `RESTORE` 确认口令，避免误点一键回滚整库
 
 ## 技术栈
 
 | 组件 | 说明 |
 |---|---|
 | 后端 | Python 3.10+ / Django 5.2 |
-| 数据库 | SQLite（零配置，开箱即用） |
+| 数据库 | SQLite（零配置，开箱即用；已启用 WAL + 20s busy timeout 提升并发写入稳定性） |
 | 前端 | 原生 HTML/CSS/JS，Django 模板 |
 | Excel 处理 | openpyxl |
+| 二维码 | qrcode（离线生成 SVG，不依赖外部服务与 Pillow） |
 
 ## 快速开始
 
@@ -136,17 +148,20 @@ python convert_to_template.py --create-departments # 顺便把缺失的部门写
 ```
 资产管理系统/
 ├── assets/                  # 核心应用（模型/视图/权限/模板标签）
-│   ├── models.py            # Role/UserProfile/Department/Asset/Requisition/AssetChange/BackupSetting
+│   ├── models.py            # Role/UserProfile/Department/Asset/Requisition/AssetChange/BackupSetting/AssetAttachment/OperationLog
 │   ├── views.py             # 全部业务视图
-│   ├── admin.py             # Django admin（含「数据备份」管理页）
+│   ├── admin.py             # Django admin（含「数据备份」「操作日志」管理页）
 │   ├── backup.py            # 备份核心：生成 / 清理 / 恢复整库快照
-│   ├── middleware.py        # 自动备份中间件
+│   ├── oplog.py             # 操作日志助手（log / diff），失败不影响主流程
+│   ├── qr.py                # 资产二维码（离线生成 SVG）
+│   ├── middleware.py        # 单设备登录 + 自动备份中间件
+│   ├── context_processors.py # 设备识别 / 消息 / 逾期提醒
 │   ├── permissions.py       # perm_required 权限装饰器
 │   └── migrations/
 ├── assets_system/           # Django 项目配置
-├── templates/               # 页面模板
+├── templates/               # 页面模板（含 asset_labels.html 标签打印页）
 ├── static/                  # 样式与脚本
-├── data/                    # SQLite 数据库目录（data/db.sqlite3，真实数据不入库）
+├── data/                    # 数据目录：db.sqlite3 / media（附件）/ logs（运行日志），真实数据不入库
 ├── db.demo.sqlite3          # 演示数据库（纯虚构数据）
 ├── start.bat                # 一键启动（migrate + 建管理员 + 起服务）
 ├── import_data.bat          # 导入真实 Excel 数据
@@ -169,6 +184,8 @@ python convert_to_template.py --create-departments # 顺便把缺失的部门写
 - **Department** 部门：树状上下级、负责人
 - **Role / UserProfile** 角色与用户档案：细粒度布尔权限位
 - **BackupSetting** 备份设置（单例）：自动备份开关、频率、备份目录、上次备份时间
+- **AssetAttachment** 资产附件：所属资产、文件、文件名、大小、上传人、上传时间（下载走权限校验视图）
+- **OperationLog** 操作日志：时间、模块、动作、操作对象、详情、操作人、来源 IP（只读，管理员可查）
 
 ## 部署与安全
 
@@ -180,6 +197,10 @@ python convert_to_template.py --create-departments # 顺便把缺失的部门写
 | `ASSETS_DEBUG` | 关闭 | 排查问题时设为 `1` 临时开启 |
 | `ASSETS_ALLOWED_HOSTS` | `*`（不限制） | 收紧时填 `192.168.1.10,asset.local` 形式 |
 | `ASSETS_DB_PATH` | `data/db.sqlite3` | 指定其它数据库文件（演示库 / 测试库） |
+| `ASSETS_REDIS_URL` | 未设置（LocMem） | 多 worker 部署时填 `redis://redis:6379/0`，登录锁定计数跨进程共享 |
+| `ASSETS_MEDIA_ROOT` | `data/media` | 附件存放目录（随数据卷持久化） |
+| `ASSETS_LOG_DIR` | `data/logs` | 运行日志目录（`app.log`，5MB × 5 份轮转） |
+| `ASSETS_LOG_LEVEL` | `INFO` | 日志级别 |
 
 > 调试模式默认关闭，错误页不会把源码与 SQL 暴露给局域网访问者。
 > 由于 DEBUG 默认关闭，`start.bat` 使用 `runserver --insecure` 以便继续提供静态文件。
@@ -191,6 +212,13 @@ python convert_to_template.py --create-departments # 顺便把缺失的部门写
 - **启动脚本不再重置密码**：`ensure_admin.py` 完全幂等，内置角色的权限也不会被覆盖
 - **XSS 防护**：消息 Toast 改用 `json_script` 输出；可搜索下拉改用 DOM 文本节点而非 `innerHTML`；删除确认文案改由 `data-confirm` 属性传递（由模板自动转义）
 - **后台入口收敛**：侧栏「后台管理」仅对 staff / superuser 显示
+- **备份恢复/下载限超管**：后端校验 + 前端按钮禁用，恢复需输入 `RESTORE` 确认口令
+- **操作审计**：全链路操作日志 + 资产编辑字段级留痕，越权尝试也会被记录
+- **附件访问受控**：附件不暴露存储路径，下载走登录与权限校验的视图
+- **SQLite 并发加固**：`journal_mode=WAL` + `synchronous=NORMAL` + `busy_timeout=20s`，降低多线程写入时的 `database is locked`
+- **运行日志落盘**：控制台 + `data/logs/app.log`（5MB × 5 份轮转），容器日志被清理后仍可回溯
+- **依赖锁版本**：`requirements.txt` 全部锁定精确版本，避免重建镜像时被动升级到不兼容版本
+- **容器健康检查**：Dockerfile 内置 `HEALTHCHECK`（探测登录页可访问）
 
 ### 数据与仓库
 
