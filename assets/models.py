@@ -179,6 +179,10 @@ class Requisition(models.Model):
         ('已归还', '已归还'),
     ]
 
+    # 资产归还后回到综合管理部，责任人与实际使用人统一落到资产管理员。
+    DEFAULT_OWNER = '资产管理员'
+    DEFAULT_DEPT_NAME = '综合管理部'
+
     asset = models.ForeignKey(
         Asset,
         verbose_name='资产',
@@ -186,6 +190,10 @@ class Requisition(models.Model):
         related_name='requisitions',
     )
     user = models.CharField('领用人', max_length=50)
+    actual_user = models.CharField(
+        '实际使用人', max_length=50, blank=True,
+        help_text='选填；留空表示实际使用人同领用人',
+    )
     department = models.ForeignKey(
         Department,
         verbose_name='领用部门',
@@ -223,11 +231,46 @@ class Requisition(models.Model):
         """业务展示状态：借出（正常）/ 已归还 / 逾期（借出且过期）。"""
         return '逾期' if self.is_overdue else self.status
 
-    def save(self, *args, **kwargs):
-        """同步资产状态（置于同一事务，避免半套状态）。
+    @property
+    def effective_user(self):
+        """实际使用人；留空时视为与领用人一致。"""
+        return (self.actual_user or '').strip() or self.user
 
-        - 借出  → 资产置为「借出」
-        - 已归还 → 若该资产已无其它未归还领用，则回到「库存」
+    @classmethod
+    def default_department(cls):
+        """归还后资产应归属的部门（综合管理部）；不存在时返回 None。"""
+        return Department.objects.filter(name=cls.DEFAULT_DEPT_NAME).first()
+
+    def _sync_asset_on_borrow(self):
+        """借出：资产置为「借出」，责任人→领用人，实际使用人→表单值，部门→领用部门。"""
+        fields = {
+            'status': '借出',
+            'responsible': self.user or '',
+            'user': self.effective_user or '',
+        }
+        # 所属部门随领用部门流转；未选部门时保持原值，避免误清空
+        if self.department_id:
+            fields['department_id'] = self.department_id
+        Asset.objects.filter(pk=self.asset_id).update(**fields)
+
+    def _sync_asset_on_return(self):
+        """归还：资产回「库存」，责任人 / 实际使用人→资产管理员，部门→综合管理部。"""
+        fields = {
+            'status': '库存',
+            'responsible': self.DEFAULT_OWNER,
+            'user': self.DEFAULT_OWNER,
+        }
+        default_dept = self.default_department()
+        if default_dept:
+            fields['department_id'] = default_dept.pk
+        Asset.objects.filter(pk=self.asset_id).update(**fields)
+
+    def save(self, *args, **kwargs):
+        """同步资产状态与人员归属（置于同一事务，避免半套状态）。
+
+        - 借出  → 资产「借出」，责任人=领用人、实际使用人=实际使用人、部门=领用部门
+        - 已归还 → 若无其它未归还领用，资产回「库存」，
+                   责任人 / 实际使用人=资产管理员、部门=综合管理部
         - 逾期为派生状态，绝不入库、也不触发资产回收：
           逾期中的资产仍视为占用中，应保持「借出」。
         """
@@ -235,24 +278,49 @@ class Requisition(models.Model):
 
         with transaction.atomic():
             new_status = self.status
-            old_status = None
-            if self.pk:
-                old_status = Requisition.objects.filter(pk=self.pk).values_list('status', flat=True).first()
             super().save(*args, **kwargs)
 
             if new_status == '借出':
-                if self.asset.status != '借出':
-                    Asset.objects.filter(pk=self.asset_id).update(status='借出')
-                    self.asset.status = '借出'
+                self._sync_asset_on_borrow()
+                self.asset.refresh_from_db()
             elif new_status == '已归还':
                 # 只有真正处于借出(含逾期)状态的资产，在全部归还后才复原为库存
                 has_outstanding = Requisition.objects.filter(
                     asset=self.asset, status='借出'
                 ).exclude(pk=self.pk).exists()
                 if not has_outstanding and self.asset.status in ('借出',):
-                    Asset.objects.filter(pk=self.asset_id).update(status='库存')
-                    self.asset.status = '库存'
+                    self._sync_asset_on_return()
+                    self.asset.refresh_from_db()
             # 其余情况（老数据若存在 '逾期' 存储值）一律迁移为借出口径，不回收资产
+
+    def delete(self, *args, **kwargs):
+        """删除领用记录：若该资产已无其它未归还领用，则复位为库存 + 默认归属。
+
+        删除不走 save()，因此这里显式处理，保证无论从页面、后台还是脚本删除，
+        资产都不会残留「借出 + 借用人」的脏状态。
+        """
+        from django.db import transaction
+
+        asset = self.asset
+        with transaction.atomic():
+            super().delete(*args, **kwargs)
+            has_outstanding = Requisition.objects.filter(
+                asset=asset, status='借出'
+            ).exists()
+            if has_outstanding:
+                return
+            asset.refresh_from_db()
+            if asset.status != '借出':
+                return
+            fields = {
+                'status': '库存',
+                'responsible': self.DEFAULT_OWNER,
+                'user': self.DEFAULT_OWNER,
+            }
+            default_dept = self.default_department()
+            if default_dept:
+                fields['department_id'] = default_dept.pk
+            Asset.objects.filter(pk=asset.pk).update(**fields)
 
 
 class AssetChange(models.Model):

@@ -29,7 +29,7 @@ class AssetAdmin(admin.ModelAdmin):
 
 @admin.register(Requisition)
 class RequisitionAdmin(admin.ModelAdmin):
-    list_display = ('asset', 'user', 'borrow_date', 'return_date', 'status')
+    list_display = ('asset', 'user', 'actual_user', 'borrow_date', 'return_date', 'status')
     list_filter = ('status',)
     search_fields = ('user', 'asset__name')
 

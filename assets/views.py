@@ -885,7 +885,7 @@ def requisition_export(request):
     wb = Workbook()
     ws = wb.active
     ws.title = '资产领用'
-    headers = ['资产编号', '资产名称', '领用人', '领用部门', '领用用途',
+    headers = ['资产编号', '资产名称', '领用人', '实际使用人', '领用部门', '领用用途',
                '领用日期', '预计归还', '归还日期', '状态']
     ws.append(headers)
     for r in records:
@@ -893,6 +893,7 @@ def requisition_export(request):
             r.asset.asset_id,
             r.asset.name,
             r.user,
+            r.actual_user or '',
             r.department.name if r.department else '',
             r.purpose,
             r.borrow_date.strftime('%Y-%m-%d') if r.borrow_date else '',
@@ -900,7 +901,7 @@ def requisition_export(request):
             r.return_date.strftime('%Y-%m-%d') if r.return_date else '',
             r.display_status,
         ])
-    for i, w in enumerate([14, 22, 12, 14, 24, 12, 12, 12, 10], start=1):
+    for i, w in enumerate([14, 22, 12, 14, 14, 24, 12, 12, 12, 10], start=1):
         ws.column_dimensions[chr(64 + i)].width = w
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -915,6 +916,7 @@ def requisition_create(request):
     if request.method == 'POST':
         asset_id = request.POST.get('asset')
         user = request.POST.get('user', '').strip()
+        actual_user = request.POST.get('actual_user', '').strip()
         department_id = request.POST.get('department') or None
         purpose = request.POST.get('purpose', '').strip()
         due_date = request.POST.get('due_date') or None
@@ -935,10 +937,14 @@ def requisition_create(request):
                 messages.error(request, f'资产 {asset.name} 当前状态为「{asset.status}」，不可领用。')
             else:
                 Requisition.objects.create(
-                    asset=asset, user=user, department_id=department_id,
+                    asset=asset, user=user, actual_user=actual_user,
+                    department_id=department_id,
                     purpose=purpose, due_date=due_date,
                 )
-                messages.success(request, f'资产 {asset.name} 已领用给 {user}。')
+                messages.success(
+                    request,
+                    f'资产 {asset.name} 已领用给 {user}，责任人、实际使用人与所属部门已同步到资产库。',
+                )
                 return redirect('requisition')
     return redirect('requisition')
 
@@ -961,6 +967,7 @@ def requisition_edit(request, pk):
     record = get_object_or_404(Requisition, pk=pk)
     if request.method == 'POST':
         record.user = request.POST.get('user', record.user).strip()
+        record.actual_user = request.POST.get('actual_user', record.actual_user).strip()
         record.department_id = request.POST.get('department') or None
         record.purpose = request.POST.get('purpose', '').strip()
         record.due_date = request.POST.get('due_date') or None
@@ -995,15 +1002,8 @@ def requisition_delete(request, pk):
     if request.method == 'POST':
         from django.db import transaction
         with transaction.atomic():
-            asset = record.asset
+            # 复位资产状态与归属的逻辑在 Requisition.delete() 中统一处理
             record.delete()
-            # 删除借出记录后，若该资产无其他未归还记录，则恢复为库存
-            # 未归还=存储态「借出」（逾期是其派生形态，不入库）
-            has_outstanding = Requisition.objects.filter(
-                asset=asset, status='借出'
-            ).exists()
-            if not has_outstanding and asset.status == '借出':
-                Asset.objects.filter(pk=asset.pk).update(status='库存')
         messages.success(request, '领用记录已删除。')
     return redirect('requisition')
 

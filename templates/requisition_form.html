@@ -15,6 +15,10 @@
                 <input type="text" name="user" required value="{{ record.user }}">
             </div>
             <div class="form-field">
+                <label>实际使用人</label>
+                <input type="text" name="actual_user" value="{{ record.actual_user|default:'' }}" placeholder="留空 = 同领用人">
+            </div>
+            <div class="form-field">
                 <label class="req">领用部门</label>
                 <select name="department" required>
                     <option value="">-- 请选择 --</option>
@@ -50,6 +54,9 @@
                 <label class="req">领用用途</label>
                 <input type="text" name="purpose" required value="{{ record.purpose|default:'' }}">
             </div>
+        </div>
+        <div class="muted" style="margin:4px 0 12px">
+            保存后会自动同步资产库：借出时责任人=领用人、实际使用人=实际使用人、所属部门=领用部门；归还时资产回库存，责任人/实际使用人回到「资产管理员」、所属部门回到「综合管理部」。
         </div>
         <div class="form-actions">
             <button type="submit" class="btn">保存</button>

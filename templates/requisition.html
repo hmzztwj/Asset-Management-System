@@ -31,6 +31,10 @@
             <input type="text" name="user" required placeholder="姓名">
         </div>
         <div class="filter-group">
+            <label>实际使用人</label>
+            <input type="text" name="actual_user" placeholder="留空 = 同领用人">
+        </div>
+        <div class="filter-group">
             <label class="req">领用部门</label>
             <div class="asset-pick" id="pick-dept">
                 <button type="button" class="ap-box">
@@ -73,13 +77,14 @@
     <div class="table-wrap">
     <table class="table">
         <thead>
-            <tr><th>资产</th><th>领用人</th><th>部门</th><th>用途</th><th>领用日期</th><th>预计归还</th><th>归还日期</th><th>状态</th><th>操作</th></tr>
+            <tr><th>资产</th><th>领用人</th><th>实际使用人</th><th>部门</th><th>用途</th><th>领用日期</th><th>预计归还</th><th>归还日期</th><th>状态</th><th>操作</th></tr>
         </thead>
         <tbody>
             {% for r in records %}
             <tr>
                 <td>{{ r.asset.name }} <span class="muted">{{ r.asset.asset_id }}</span></td>
                 <td>{{ r.user }}</td>
+                <td>{% if r.actual_user %}{{ r.actual_user }}{% else %}<span class="muted">同领用人</span>{% endif %}</td>
                 <td>{{ r.department.name|default:'—' }}</td>
                 <td>{{ r.purpose|default:'—' }}</td>
                 <td>{{ r.borrow_date|date:'Y-m-d' }}</td>
