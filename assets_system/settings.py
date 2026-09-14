@@ -96,12 +96,15 @@ LOGOUT_REDIRECT_URL = '/login/'
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 30
 
+# 数据库默认路径：项目根目录下的 data/db.sqlite3（与部署文档、Docker 挂载卷结构一致）
+# 可通过环境变量 ASSETS_DB_PATH 覆盖（例如生成/使用独立的演示库，避免触碰真实库）
+_DB_PATH = os.environ.get('ASSETS_DB_PATH', str(BASE_DIR / 'data' / 'db.sqlite3'))
+os.makedirs(os.path.dirname(_DB_PATH), exist_ok=True)
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        # 默认使用项目根目录的 db.sqlite3；
-        # 可通过环境变量 ASSETS_DB_PATH 覆盖（例如生成/使用独立的演示库，避免触碰真实库）
-        'NAME': os.environ.get('ASSETS_DB_PATH', str(BASE_DIR / 'db.sqlite3')),
+        'NAME': _DB_PATH,
     }
 }
 

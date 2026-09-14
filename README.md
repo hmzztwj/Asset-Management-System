@@ -78,7 +78,7 @@ python manage.py runserver 0.0.0.0:12036
 
 仓库附带一套纯虚构演示数据库 `db.demo.sqlite3`（12 个部门、37 项资产、3 条领用、2 条变更，与任何真实数据无关）：
 
-- `USE_DEMO_DATA.bat` —— 项目根目录没有 `db.sqlite3` 时，把演示库复制为默认库（已存在真实库则不覆盖）
+- `USE_DEMO_DATA.bat` —— 项目 `data/db.sqlite3` 不存在时，把演示库复制为默认库（已存在真实库则不覆盖）
 - `build_demo_db.bat` —— 重新生成全新演示库
 
 ### 导入真实数据
@@ -146,6 +146,7 @@ python convert_to_template.py --create-departments # 顺便把缺失的部门写
 ├── assets_system/           # Django 项目配置
 ├── templates/               # 页面模板
 ├── static/                  # 样式与脚本
+├── data/                    # SQLite 数据库目录（data/db.sqlite3，真实数据不入库）
 ├── db.demo.sqlite3          # 演示数据库（纯虚构数据）
 ├── start.bat                # 一键启动（migrate + 建管理员 + 起服务）
 ├── import_data.bat          # 导入真实 Excel 数据
@@ -156,6 +157,7 @@ python convert_to_template.py --create-departments # 顺便把缺失的部门写
 ├── seed_data.py             # 演示数据生成
 ├── ensure_admin.py          # 初始化内置超管与内置角色（幂等，不覆盖已有密码/权限）
 ├── backup/                  # 备份文件目录（自动创建，不入库）
+├── archive/                 # 历史备份 / 临时文件归档（不入库，可整个删除）
 └── requirements.txt
 ```
 
@@ -177,7 +179,7 @@ python convert_to_template.py --create-departments # 顺便把缺失的部门写
 | `ASSETS_SECRET_KEY` | 内置开发默认值 | 部署前请替换为随机字符串 |
 | `ASSETS_DEBUG` | 关闭 | 排查问题时设为 `1` 临时开启 |
 | `ASSETS_ALLOWED_HOSTS` | `*`（不限制） | 收紧时填 `192.168.1.10,asset.local` 形式 |
-| `ASSETS_DB_PATH` | `db.sqlite3` | 指定其它数据库文件（演示库 / 测试库） |
+| `ASSETS_DB_PATH` | `data/db.sqlite3` | 指定其它数据库文件（演示库 / 测试库） |
 
 > 调试模式默认关闭，错误页不会把源码与 SQL 暴露给局域网访问者。
 > 由于 DEBUG 默认关闭，`start.bat` 使用 `runserver --insecure` 以便继续提供静态文件。
@@ -192,4 +194,4 @@ python convert_to_template.py --create-departments # 顺便把缺失的部门写
 
 ### 数据与仓库
 
-- 仓库不包含任何真实业务数据：`db.sqlite3` 与 `实际数据/` 已被 `.gitignore` 排除，演示库为纯虚构数据
+- 仓库不包含任何真实业务数据：`data/`（真实库）与 `实际数据/` 已被 `.gitignore` 排除，演示库为纯虚构数据

@@ -38,3 +38,6 @@ backup/
 # ---- Docker 部署产物 ----
 data/
 staticfiles/
+
+# ---- 本地归档（历史备份/临时文件，含真实数据，禁止提交）----
+archive/
