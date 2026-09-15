@@ -50,29 +50,32 @@
         .org { margin-top: 1.5mm; font-size: 10px; color: #9ca3af; }
         .empty { width: 100%; text-align: center; color: #6b7280; padding: 40px 0; }
 
-        /* ---- 整页单张模式（?layout=single）---- */
-        .sheet.single { display: block; width: 190mm; }
-        .sheet.single .label {
-            width: 100%; height: 265mm; padding: 14mm;
-            gap: 14mm; justify-content: center;
+        /* ---- 40×60mm 标签纸模式（?layout=tag）----
+           页面尺寸由 head 里的条件 @page 覆盖为 40mm×60mm（2mm 边距 → 可打印区 36×56mm），
+           一张标签纸打一个资产，适配热敏标签机 */
+        .sheet.tag { display: block; width: 40mm; margin: 0 auto; }
+        .sheet.tag .label {
+            width: 40mm; height: 60mm; padding: 2mm; border-radius: 1mm;
+            flex-direction: column; align-items: center; justify-content: flex-start; gap: 1mm;
         }
-        .sheet.single .qr { width: 92mm; height: 92mm; }
-        .sheet.single .meta { padding: 4mm 0; }
-        .sheet.single .name { font-size: 34px; margin-bottom: 8mm; white-space: normal; line-height: 1.35; }
-        .sheet.single .row { font-size: 22px; gap: 4mm; line-height: 2.1; }
-        .sheet.single .k { flex: 0 0 30mm; color: #4b5563; }
-        .sheet.single .org { margin-top: 10mm; font-size: 16px; }
+        .sheet.tag .qr { width: 24mm; height: 24mm; }
+        .sheet.tag .meta { width: 100%; }
+        .sheet.tag .name { font-size: 10.5px; white-space: normal; text-align: center; line-height: 1.3; margin-bottom: 1mm; }
+        .sheet.tag .row { font-size: 8.5px; line-height: 1.65; gap: 1mm; }
+        .sheet.tag .k { flex: 0 0 8mm; color: #4b5563; }
+        .sheet.tag .org { margin-top: 0.5mm; font-size: 7px; text-align: center; }
 
         /* ---- 打印 ---- */
         @page { size: A4; margin: 8mm; }
+        {% if layout == 'tag' %}@page { size: 40mm 60mm; margin: 2mm; }{% endif %}
         @media print {
             body { background: #fff; padding: 0; }
             .no-print { display: none !important; }
             .sheet { width: auto; padding: 0; gap: 3mm; }
             .label { break-inside: avoid; page-break-inside: avoid; border-color: #e5e7eb; }
-            /* 整页单张：一页一张，页尾强制分页 */
-            .sheet.single .label { height: 272mm; border-style: solid; border-color: #e5e7eb; page-break-after: always; }
-            .sheet.single .label:last-child { page-break-after: auto; }
+            /* 40×60 标签纸：每张标签正好一页 */
+            .sheet.tag .label { width: 36mm; height: 56mm; border-style: solid; page-break-after: always; }
+            .sheet.tag .label:last-child { page-break-after: auto; }
         }
     </style>
 </head>
@@ -84,14 +87,14 @@
         <div class="tip">需打印二维码时请勾选「背景图形」；二维码内嵌该资产的信息快照，扫码直接查看、无需登录；资产信息变更后请重新打印对应标签。</div>
     </div>
     <div class="bar-actions">
-        <a class="btn btn-outline {% if layout == 'grid' %}active{% endif %}" href="{{ url_grid }}">60×40mm 三列</a>
-        <a class="btn btn-outline {% if layout == 'single' %}active{% endif %}" href="{{ url_single }}">整页单张</a>
+        <a class="btn btn-outline {% if layout == 'grid' %}active{% endif %}" href="{{ url_grid }}">60×40mm 三列（A4）</a>
+        <a class="btn btn-outline {% if layout == 'tag' %}active{% endif %}" href="{{ url_tag }}">40×60mm 标签纸</a>
         <button type="button" class="btn" onclick="window.print()">🖨 打印</button>
         <a class="btn btn-outline" href="{% url 'library' %}">返回资产库</a>
     </div>
 </div>
 
-<div class="sheet {% if layout == 'single' %}single{% endif %}">
+<div class="sheet {% if layout == 'tag' %}tag{% endif %}">
     {% for a in assets %}
     <div class="label">
         <img class="qr" src="{% url 'asset_qr' a.pk %}" alt="二维码">
