@@ -1815,8 +1815,15 @@ def asset_labels(request):
         qs, _ = _filtered_assets(request)
         assets = list(qs.order_by('asset_id')[:200])
 
+    # 版式：grid = A4 三列 60×40mm（默认）；single = 一页一张大标签
+    layout = 'single' if request.GET.get('layout') == 'single' else 'grid'
+    # 版式切换链接：保留 ids 参数，去掉旧 layout
+    keep_ids = f'ids={ids_raw}&' if ids_raw else ''
     context = {
         'assets': assets,
+        'layout': layout,
+        'url_grid': '?' + keep_ids,
+        'url_single': '?ids=' + keep_ids + 'layout=single' if keep_ids else '?layout=single',
         'page_title': '资产标签打印',
         'active': 'library',
     }

@@ -24,6 +24,7 @@
             font-size: 13px; text-decoration: none; line-height: 1.2;
         }
         .btn-outline { background: #fff; color: #374151; border-color: #d1d5db; }
+        .btn-outline.active { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; font-weight: 700; }
         .tip { color: #6b7280; font-size: 12px; }
 
         /* ---- 标签纸张：A4 三列 ---- */
@@ -49,6 +50,19 @@
         .org { margin-top: 1.5mm; font-size: 10px; color: #9ca3af; }
         .empty { width: 100%; text-align: center; color: #6b7280; padding: 40px 0; }
 
+        /* ---- 整页单张模式（?layout=single）---- */
+        .sheet.single { display: block; width: 190mm; }
+        .sheet.single .label {
+            width: 100%; height: 265mm; padding: 14mm;
+            gap: 14mm; justify-content: center;
+        }
+        .sheet.single .qr { width: 92mm; height: 92mm; }
+        .sheet.single .meta { padding: 4mm 0; }
+        .sheet.single .name { font-size: 34px; margin-bottom: 8mm; white-space: normal; line-height: 1.35; }
+        .sheet.single .row { font-size: 22px; gap: 4mm; line-height: 2.1; }
+        .sheet.single .k { flex: 0 0 30mm; color: #4b5563; }
+        .sheet.single .org { margin-top: 10mm; font-size: 16px; }
+
         /* ---- 打印 ---- */
         @page { size: A4; margin: 8mm; }
         @media print {
@@ -56,6 +70,9 @@
             .no-print { display: none !important; }
             .sheet { width: auto; padding: 0; gap: 3mm; }
             .label { break-inside: avoid; page-break-inside: avoid; border-color: #e5e7eb; }
+            /* 整页单张：一页一张，页尾强制分页 */
+            .sheet.single .label { height: 272mm; border-style: solid; border-color: #e5e7eb; page-break-after: always; }
+            .sheet.single .label:last-child { page-break-after: auto; }
         }
     </style>
 </head>
@@ -64,16 +81,17 @@
 <div class="bar no-print">
     <div>
         <div class="bar-title">资产标签打印（共 {{ assets|length }} 张）</div>
-        <div class="tip">需打印二维码时请勾选「背景图形」；标签为 60×40mm，可直接用不干胶纸打印或裁剪粘贴。<br>
-            二维码内嵌该资产的信息快照，手机扫码直接查看、无需登录；资产信息变更后请重新打印对应标签。</div>
+        <div class="tip">需打印二维码时请勾选「背景图形」；二维码内嵌该资产的信息快照，扫码直接查看、无需登录；资产信息变更后请重新打印对应标签。</div>
     </div>
     <div class="bar-actions">
+        <a class="btn btn-outline {% if layout == 'grid' %}active{% endif %}" href="{{ url_grid }}">60×40mm 三列</a>
+        <a class="btn btn-outline {% if layout == 'single' %}active{% endif %}" href="{{ url_single }}">整页单张</a>
         <button type="button" class="btn" onclick="window.print()">🖨 打印</button>
         <a class="btn btn-outline" href="{% url 'library' %}">返回资产库</a>
     </div>
 </div>
 
-<div class="sheet">
+<div class="sheet {% if layout == 'single' %}single{% endif %}">
     {% for a in assets %}
     <div class="label">
         <img class="qr" src="{% url 'asset_qr' a.pk %}" alt="二维码">
