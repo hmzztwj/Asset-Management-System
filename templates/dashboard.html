@@ -159,77 +159,135 @@ window.addEventListener('load', function () {
     const palette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316'];
     const grid = { color: '#eef1f6' };
 
-    new Chart(document.getElementById('deptPie'), {
-        type: 'doughnut',
-        data: {
-            labels: labels,
-            datasets: [{ data: counts, backgroundColor: palette, borderWidth: 2, borderColor: '#fff' }]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom' },
-                tooltip: { callbacks: { label: function (t) { return t.label + ': ' + t.raw + ' 台'; } } }
+    // 图表构建集中在一个函数里：缩放导致像素密度变化时需要销毁重建
+    function buildCharts() {
+        return [
+            new Chart(document.getElementById('deptPie'), {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{ data: counts, backgroundColor: palette, borderWidth: 2, borderColor: '#fff' }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: { callbacks: { label: function (t) { return t.label + ': ' + t.raw + ' 台'; } } }
+                    }
+                }
+            }),
+
+            new Chart(document.getElementById('deptBar'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{ label: '资产数量', data: counts, backgroundColor: '#3b82f6', borderRadius: 6 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, grid: grid }, x: { grid: { display: false } } },
+                    plugins: { legend: { display: false } }
+                }
+            }),
+
+            new Chart(document.getElementById('statusPie'), {
+                type: 'pie',
+                data: {
+                    labels: statusLabels,
+                    datasets: [{ data: statusValues, backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'], borderWidth: 2, borderColor: '#fff' }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            }),
+
+            new Chart(document.getElementById('catBar'), {
+                type: 'bar',
+                data: {
+                    labels: catLabels,
+                    datasets: [{ label: '数量', data: catValues, backgroundColor: '#10b981', borderRadius: 6 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, grid: grid }, x: { grid: { display: false } } },
+                    plugins: { legend: { display: false } }
+                }
+            }),
+
+            new Chart(document.getElementById('valueBar'), {
+                type: 'bar',
+                data: {
+                    labels: valueLabels,
+                    datasets: [{ label: '资产总值', data: valueCounts, backgroundColor: '#8b5cf6', borderRadius: 6 }]
+                },
+                options: {
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        x: { beginAtZero: true, grid: grid, ticks: { callback: v => '¥' + (v/10000).toFixed(1) + '万' } },
+                        y: { grid: { display: false }, ticks: { autoSkip: false } }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: t => '¥' + t.raw.toLocaleString() } }
+                    }
+                }
+            })
+        ];
+    }
+
+    let charts = buildCharts();
+
+    // ---------- 浏览器缩放 / 窗口尺寸变化时同步画布尺寸 ----------
+    // Chart.js 自带的重绘只依赖 window.resize，而 Chrome 调整页面缩放（Ctrl +/-）
+    // 不保证触发该事件，且缩放会改变 devicePixelRatio（画布后备像素密度），
+    // 于是出现「缩小到 90% 再回到 100%，图表尺寸不跟着回调」。
+    // 这里补齐三条通路：容器尺寸变化 → resize()；像素密度变化 → 销毁重建。
+    const boxes = Array.prototype.slice.call(document.querySelectorAll('.chart-box'));
+    let lastDpr = window.devicePixelRatio || 1;
+    let rafId = 0;
+
+    function syncCharts() {
+        if (rafId) { return; }
+        rafId = requestAnimationFrame(function () {
+            rafId = 0;
+            const dpr = window.devicePixelRatio || 1;
+            if (dpr !== lastDpr) {
+                // 像素密度变了：旧的画布位图已不适用，销毁重建最稳妥
+                lastDpr = dpr;
+                charts.forEach(function (ch) { ch.destroy(); });
+                charts = buildCharts();
+            } else {
+                charts.forEach(function (ch) { ch.resize(); });
             }
-        }
-    });
+        });
+    }
 
-    new Chart(document.getElementById('deptBar'), {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{ label: '资产数量', data: counts, backgroundColor: '#3b82f6', borderRadius: 6 }]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            scales: { y: { beginAtZero: true, grid: grid }, x: { grid: { display: false } } },
-            plugins: { legend: { display: false } }
-        }
-    });
+    // ① 容器尺寸变化（缩放/窗口变化/侧栏折叠都会改宽度）
+    if (window.ResizeObserver && boxes.length) {
+        const ro = new ResizeObserver(function () { syncCharts(); });
+        boxes.forEach(function (b) { ro.observe(b); });
+    }
+    // ② 窗口尺寸、横竖屏、可视视口（移动端双指缩放）
+    window.addEventListener('resize', syncCharts);
+    window.addEventListener('orientationchange', syncCharts);
+    if (window.visualViewport) { window.visualViewport.addEventListener('resize', syncCharts); }
 
-    new Chart(document.getElementById('statusPie'), {
-        type: 'pie',
-        data: {
-            labels: statusLabels,
-            datasets: [{ data: statusValues, backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'], borderWidth: 2, borderColor: '#fff' }]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom' } }
+    // ③ 兜底轮询：浏览器页面缩放（Ctrl +/-）存在既不触发 resize、容器宽度也不变的情形
+    //    （只改 devicePixelRatio），此时上面两条通路都不会响。
+    //    因此低频比对「像素密度 + 容器宽度」指纹，一旦变化就同步，代价可忽略。
+    function fingerprint() {
+        return (window.devicePixelRatio || 1).toFixed(3) + '|' +
+            boxes.map(function (b) { return Math.round(b.getBoundingClientRect().width); }).join(',');
+    }
+    let lastKey = fingerprint();
+    setInterval(function () {
+        const key = fingerprint();
+        if (key !== lastKey) {
+            lastKey = key;
+            syncCharts();
         }
-    });
-
-    new Chart(document.getElementById('catBar'), {
-        type: 'bar',
-        data: {
-            labels: catLabels,
-            datasets: [{ label: '数量', data: catValues, backgroundColor: '#10b981', borderRadius: 6 }]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            scales: { y: { beginAtZero: true, grid: grid }, x: { grid: { display: false } } },
-            plugins: { legend: { display: false } }
-        }
-    });
-
-    new Chart(document.getElementById('valueBar'), {
-        type: 'bar',
-        data: {
-            labels: valueLabels,
-            datasets: [{ label: '资产总值', data: valueCounts, backgroundColor: '#8b5cf6', borderRadius: 6 }]
-        },
-        options: {
-            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-            scales: {
-                x: { beginAtZero: true, grid: grid, ticks: { callback: v => '¥' + (v/10000).toFixed(1) + '万' } },
-                y: { grid: { display: false }, ticks: { autoSkip: false } }
-            },
-            plugins: {
-                legend: { display: false },
-                tooltip: { callbacks: { label: t => '¥' + t.raw.toLocaleString() } }
-            }
-        }
-    });
+    }, 400);
 });
 </script>
 {% endblock %}
