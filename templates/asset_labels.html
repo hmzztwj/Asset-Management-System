@@ -85,11 +85,15 @@
 <div class="bar no-print">
     <div>
         <div class="bar-title">资产标签打印（共 {{ assets|length }} 张）</div>
-        <div class="tip">需打印二维码时请勾选「背景图形」；二维码内嵌该资产的信息快照，扫码直接查看、无需登录；资产信息变更后请重新打印对应标签。</div>
+        <div class="tip">需打印二维码时请勾选「背景图形」；资产信息变更后请重新打印对应标签。</div>
     </div>
     <div class="bar-actions">
+        <span class="tip">版式</span>
         <a class="btn btn-outline {% if layout == 'grid' %}active{% endif %}" href="{{ url_grid }}">60×40mm 三列（A4）</a>
         <a class="btn btn-outline {% if layout == 'tag' %}active{% endif %}" href="{{ url_tag }}">60×40mm 标签纸（单张）</a>
+        <span class="tip">二维码</span>
+        <a class="btn btn-outline {% if qr_mode == 'link' %}active{% endif %}" href="{{ url_qr_link }}">扫码看信息卡</a>
+        <a class="btn btn-outline {% if qr_mode == 'text' %}active{% endif %}" href="{{ url_qr_text }}">纯文本</a>
         <button type="button" class="btn" onclick="window.print()">🖨 打印</button>
         <a class="btn btn-outline" href="{% url 'library' %}">返回资产库</a>
     </div>
@@ -98,7 +102,7 @@
 <div class="sheet {% if layout == 'tag' %}tag{% endif %}">
     {% for a in assets %}
     <div class="label">
-        <img class="qr" src="{% url 'asset_qr' a.pk %}" alt="二维码">
+        <img class="qr" src="{% url 'asset_qr' a.pk %}{% if qr_mode == 'text' %}?data=text{% endif %}" alt="二维码">
         <div class="meta">
             <div class="name" title="{{ a.name }}">{{ a.name }}</div>
             <div class="row"><span class="k">编号</span><span class="v">{{ a.asset_id }}</span></div>

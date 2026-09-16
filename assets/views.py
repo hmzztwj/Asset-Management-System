@@ -1746,14 +1746,19 @@ def asset_qr(request, pk):
     （``asset_card``），**不需要登录，也不会落到资产库列表页**。
     信息跟着二维码走，所以标签贴出去之后，没账号的人也能看清这是什么资产。
 
-    ``?data=code`` 时退化为只编码资产编号纯文本（兼容扫码枪/旧标签）。
+    ``?data=code`` 时退化为只编码资产编号纯文本（兼容扫码枪/旧标签）；
+    ``?data=text`` 时编码多行**纯文本**（编号/名称/类别/状态/部门/责任人/
+    使用人/存放），扫码 App 直接显示文字，不打开浏览器。
 
     二维码在本机离线生成，不依赖任何外部服务。响应带 ETag 且要求浏览器
     每次校验：资产一改，扫码内容立刻变新，不会把旧快照打进标签。
     """
     asset = get_object_or_404(Asset.objects.select_related('department'), pk=pk)
-    if request.GET.get('data') == 'code':
+    mode = request.GET.get('data')
+    if mode == 'code':
         payload = asset.asset_id
+    elif mode == 'text':
+        payload = snapshot.text_payload(asset)
     else:
         payload = snapshot.card_payload(request.build_absolute_uri(reverse('asset_card')), asset)
 
@@ -1815,19 +1820,33 @@ def asset_labels(request):
         qs, _ = _filtered_assets(request)
         assets = list(qs.order_by('asset_id')[:200])
 
-    # 版式：grid = A4 三列 60×40mm（默认）；tag = 40×60mm 标签纸
-    # （@page 尺寸即标签尺寸，一张纸一张标签，适配热敏标签机）
+    # 版式：grid = A4 三列 60×40mm（默认）；tag = 60×40mm 标签纸单张
     layout = request.GET.get('layout') or 'grid'
     if layout not in ('grid', 'tag'):
         layout = 'grid'
-    # 版式切换链接：保留 ids 参数
-    keep_ids = f'ids={ids_raw}&' if ids_raw else ''
-    _url = lambda v: ('?' + keep_ids + 'layout=' + v) if keep_ids else ('?layout=' + v)
+    # 二维码内容：link = 快照链接（扫码打开免登录信息卡，默认）；text = 纯文本
+    qr_mode = request.GET.get('qr') or 'link'
+    if qr_mode not in ('link', 'text'):
+        qr_mode = 'link'
+
+    from urllib.parse import urlencode
+    base_params = {'layout': layout, 'qr': qr_mode}
+    if ids_raw:
+        base_params['ids'] = ids_raw
+
+    def _url(**over):
+        p = dict(base_params)
+        p.update(over)
+        return '?' + urlencode(p)
+
     context = {
         'assets': assets,
         'layout': layout,
-        'url_grid': _url('grid'),
-        'url_tag': _url('tag'),
+        'qr_mode': qr_mode,
+        'url_grid': _url(layout='grid'),
+        'url_tag': _url(layout='tag'),
+        'url_qr_link': _url(qr='link'),
+        'url_qr_text': _url(qr='text'),
         'page_title': '资产标签打印',
         'active': 'library',
     }
