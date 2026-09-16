@@ -50,6 +50,13 @@ CSRF_TRUSTED_ORIGINS = [
     o.strip() for o in os.environ.get('ASSETS_CSRF_ORIGINS', '').split(',') if o.strip()
 ]
 
+# 二维码扫码地址：留空则按「当前访问地址」生成（在本机用 localhost / 127.0.0.1
+# 访问时，打出来的二维码就指向 127.0.0.1，手机扫了打不开）。
+# 正式使用请固定成手机能访问的内网/公网地址，例：
+#   ASSETS_PUBLIC_BASE_URL=http://192.168.1.50:12036
+#   ASSETS_PUBLIC_BASE_URL=http://www.mdassetsmg.com
+PUBLIC_BASE_URL = (os.environ.get('ASSETS_PUBLIC_BASE_URL') or '').strip().rstrip('/')
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',

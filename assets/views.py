@@ -5,11 +5,12 @@ import math
 import os
 from decimal import Decimal, InvalidOperation
 from functools import wraps
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from openpyxl import Workbook
 from openpyxl import load_workbook
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout as auth_logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
@@ -1738,6 +1739,29 @@ def _cached_qr_svg(payload):
     return svg
 
 
+#: 扫码打不开的地址：出现这些 host 说明二维码只在本机有效。
+_LOCAL_HOSTS = ('127.0.0.1', 'localhost', '[::1]', '0.0.0.0')
+
+
+def _card_base_url(request):
+    """二维码里要写哪个地址（不含路径）。
+
+    优先用配置里的固定地址（``ASSETS_PUBLIC_BASE_URL``），没配就退回
+    「当前访问地址」——后者在本机用 127.0.0.1 访问时会把 127.0.0.1 打进
+    标签，手机扫了打不开，所以页面会给出提示。
+    """
+    fixed = (getattr(settings, 'PUBLIC_BASE_URL', '') or '').strip().rstrip('/')
+    if fixed:
+        return fixed
+    return request.build_absolute_uri('/').rstrip('/')
+
+
+def _is_local_base(url):
+    """二维码地址是不是只有本机才能打开。"""
+    host = (urlsplit(url or '').hostname or '').lower()
+    return host in _LOCAL_HOSTS or host.startswith('127.')
+
+
 @perm_required('view_assets')
 def asset_qr(request, pk):
     """返回单个资产的二维码图片（SVG）。
@@ -1746,11 +1770,15 @@ def asset_qr(request, pk):
     （``asset_card``），**不需要登录，也不会落到资产库列表页**。
     信息跟着二维码走，所以标签贴出去之后，没账号的人也能看清这是什么资产。
 
+    二维码里写哪个地址由 ``_card_base_url`` 决定：配了
+    ``ASSETS_PUBLIC_BASE_URL`` 就固定用它，否则跟着当前访问地址走。
+
     二维码在本机离线生成，不依赖任何外部服务。响应带 ETag 且要求浏览器
     每次校验：资产一改，扫码内容立刻变新，不会把旧快照打进标签。
     """
     asset = get_object_or_404(Asset.objects.select_related('department'), pk=pk)
-    payload = snapshot.card_payload(request.build_absolute_uri(reverse('asset_card')), asset)
+    base = _card_base_url(request) + reverse('asset_card')
+    payload = snapshot.card_payload(base, asset)
 
     response = HttpResponse(_cached_qr_svg(payload), content_type='image/svg+xml')
     response['ETag'] = '"%s"' % hashlib.md5(payload.encode('utf-8')).hexdigest()
@@ -1818,9 +1846,16 @@ def asset_labels(request):
     keep_ids = f'ids={ids_raw}&' if ids_raw else ''
     _url = lambda v: ('?' + keep_ids + 'layout=' + v) if keep_ids else ('?layout=' + v)
 
+    # 二维码里会写入的地址：让用户在打印前就能看见、能核对
+    qr_base = _card_base_url(request)
+    qr_base_fixed = bool((getattr(settings, 'PUBLIC_BASE_URL', '') or '').strip())
+
     context = {
         'assets': assets,
         'layout': layout,
+        'qr_base': qr_base,
+        'qr_base_local': _is_local_base(qr_base),
+        'qr_base_fixed': qr_base_fixed,
         'url_grid': _url('grid'),
         'url_tag': _url('tag'),
         'page_title': '资产标签打印',

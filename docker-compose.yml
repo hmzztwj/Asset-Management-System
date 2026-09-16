@@ -24,6 +24,12 @@ services:
       - ASSETS_CSRF_ORIGINS=
       # Redis 缓存：登录锁定等跨进程状态共享；未来加 worker 无需再改代码
       - ASSETS_REDIS_URL=redis://redis:6379/0
+      # 【建议配置】资产二维码里写的地址。留空 = 跟着「打印标签时的访问地址」走，
+      # 用 127.0.0.1 打开标签页再打印的话，标签上就印着 127.0.0.1，手机扫码打不开。
+      #   内网 IP 访问：ASSETS_PUBLIC_BASE_URL=http://10.10.2.7:12036
+      #   域名访问：    ASSETS_PUBLIC_BASE_URL=http://www.mdassetsmg.com
+      # 改完需重建容器，且**已打印的旧标签要重新打印**才会带上新地址。
+      - ASSETS_PUBLIC_BASE_URL=
     volumes:
       - ./data:/app/data     # 数据库 + 附件 + 运行日志（把现有 db.sqlite3 拷到宿主机 ./data/ 下）
       - ./backup:/app/backup # 自动备份目录（与页面「数据备份」设置对应）

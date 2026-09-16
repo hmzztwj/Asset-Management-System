@@ -26,6 +26,12 @@
         .btn-outline { background: #fff; color: #374151; border-color: #d1d5db; }
         .btn-outline.active { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; font-weight: 700; }
         .tip { color: #6b7280; font-size: 12px; }
+        /* 二维码地址提示：指向本机地址时给醒目告警，避免打印出扫不开的标签 */
+        .qrbase { max-width: 190mm; margin: 0 auto 12px; padding: 9px 14px; border-radius: 10px;
+            font-size: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+        .qrbase.warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+        .qrbase code { font-family: Consolas, Menlo, monospace; background: rgba(0,0,0,.05);
+            padding: 1px 5px; border-radius: 4px; }
 
         /* ---- 标签纸张：A4 三列 ---- */
         .sheet {
@@ -95,6 +101,19 @@
         <a class="btn btn-outline" href="{% url 'library' %}">返回资产库</a>
     </div>
 </div>
+
+{% if qr_base_local %}
+<div class="qrbase warn no-print">
+    ⚠ 二维码里的地址是 <code>{{ qr_base }}</code>（本机地址），<strong>手机扫码会打不开</strong>。
+    请改用手机能访问的地址打开本页再打印（如内网 <code>http://192.168.x.x:12036</code> 或域名），
+    或在服务端设置环境变量 <code>ASSETS_PUBLIC_BASE_URL</code> 固定扫码地址。
+</div>
+{% else %}
+<div class="qrbase no-print">
+    ✓ 二维码指向 <code>{{ qr_base }}</code>{% if qr_base_fixed %}（已在服务端固定）{% else %}（当前访问地址）{% endif %}，
+    扫码的人需要能访问这个地址（内网或域名）。
+</div>
+{% endif %}
 
 <div class="sheet {% if layout == 'tag' %}tag{% endif %}">
     {% for a in assets %}
