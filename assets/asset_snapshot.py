@@ -178,25 +178,6 @@ def card_payload(base, asset, at=None):
     return base + '?' + 'd=' + encode(asset, at)
 
 
-#: 纯文本二维码里显示的字段（顺序即显示顺序）。
-TEXT_FIELDS = ('asset_id', 'name', 'category', 'status', 'department', 'responsible', 'user', 'location')
-
-
-def text_payload(asset, at=None):
-    """生成**纯文本**二维码内容：扫码 App 直接显示文字，不打开浏览器。
-
-    适合没有网络、或希望"扫完立刻看到"的场景。内容为多行 ``字段：值``，
-    空字段自动省略；二维码容量有限，字段多时只保留最关键的几项。
-    """
-    values = values_of(asset, at)
-    lines = []
-    for key in TEXT_FIELDS:
-        value = (values.get(key) or '').strip()
-        if value:
-            lines.append('%s：%s' % (LABELS[key], value))
-    return '\n'.join(lines)
-
-
 def status_tone(status):
     """状态 → 配色关键字，未知状态按普通处理。"""
     return STATUS_TONES.get((status or '').strip(), 'muted')
