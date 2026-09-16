@@ -1670,6 +1670,7 @@ def role_create(request):
 @perm_required('manage_users')
 def role_update(request, pk):
     role = get_object_or_404(Role, pk=pk)
+    is_super_role = role.code == 'super_admin'
     if request.method == 'POST':
         name = request.POST.get('name', '').strip()
         description = request.POST.get('description', '').strip()
@@ -1679,12 +1680,20 @@ def role_update(request, pk):
             role.name = name
             role.description = description
             role.save()
-            _save_perm_fields(role, request.POST)
+            if is_super_role:
+                # 超级管理员固定拥有全部权限（admin 账号是硬编码超管，这里的
+                # 勾选只影响展示），防止被 POST 清空后与实际权限描述不符。
+                for field, _label in _PERM_FIELDS:
+                    setattr(role, field, True)
+                role.save()
+            else:
+                _save_perm_fields(role, request.POST)
             oplog.log(request, 'user', 'update', target=f'角色 {name}',
                       detail=f'权限：{"、".join(_perm_labels(role)) or "（无）"}')
             messages.success(request, f'角色 {name} 更新成功。')
             return redirect('role_list')
     context = {'page_title': '编辑角色', 'active': 'roles', 'edit_role': role,
+               'is_super_role': is_super_role,
                'perm_fields': _PERM_FIELDS, 'perm_groups': _PERM_GROUPS}
     return render(request, 'role_form.html', context)
 

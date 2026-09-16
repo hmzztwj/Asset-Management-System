@@ -502,6 +502,11 @@ table.actions { display: flex; gap: 8px; }
     font-size: 14px; color: var(--text);
 }
 .perm-check input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--primary); }
+.perm-locked-hint {
+    margin-top: 10px; padding: 9px 14px; border-radius: 8px; font-size: 13px;
+    background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8;
+}
+.perm-check input[type=checkbox]:disabled { cursor: not-allowed; }
 
 /* ---------- 顶栏用户菜单 ---------- */
 .topbar-right { display: flex; align-items: center; gap: 16px; }
