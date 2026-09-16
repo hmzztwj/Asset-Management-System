@@ -13,15 +13,20 @@
         /* ---- 顶部工具条（打印时隐藏） ---- */
         .bar {
             display: flex; align-items: center; justify-content: space-between; gap: 12px;
+            flex-wrap: wrap;                     /* 一行放不下就整体换行，不挤压按钮 */
             max-width: 190mm; margin: 0 auto 14px; background: #fff;
             border: 1px solid #e5e9f0; border-radius: 10px; padding: 10px 14px;
         }
+        .bar-text { flex: 1 1 260px; min-width: 0; }   /* 空间不够时先压缩说明文字 */
         .bar-title { font-weight: 700; }
-        .bar-actions { display: flex; gap: 8px; align-items: center; }
+        .bar-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
         .btn {
-            display: inline-block; padding: 7px 14px; border-radius: 8px; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 7px 14px; border-radius: 8px; cursor: pointer;
             border: 1px solid #3b82f6; background: #3b82f6; color: #fff;
-            font-size: 13px; text-decoration: none; line-height: 1.2;
+            font: inherit; font-size: 13px; text-decoration: none; line-height: 1.2;
+            white-space: nowrap;                 /* 按钮文字不换行，保持扁长圆角形 */
+            flex: 0 0 auto;
         }
         .btn-outline { background: #fff; color: #374151; border-color: #d1d5db; }
         .btn-outline.active { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; font-weight: 700; }
@@ -89,7 +94,7 @@
 <body>
 
 <div class="bar no-print">
-    <div>
+    <div class="bar-text">
         <div class="bar-title">资产标签打印（共 {{ assets|length }} 张）</div>
         <div class="tip">需打印二维码时请勾选「背景图形」；二维码内嵌该资产的信息快照，扫码直接查看、无需登录；资产信息变更后请重新打印对应标签。</div>
     </div>
@@ -98,7 +103,6 @@
         <a class="btn btn-outline {% if layout == 'grid' %}active{% endif %}" href="{{ url_grid }}">60×40mm 三列（A4）</a>
         <a class="btn btn-outline {% if layout == 'tag' %}active{% endif %}" href="{{ url_tag }}">60×40mm 标签纸（单张）</a>
         <button type="button" class="btn" onclick="window.print()">🖨 打印</button>
-        <a class="btn btn-outline" href="{% url 'library' %}">返回资产库</a>
     </div>
 </div>
 
