@@ -26,6 +26,7 @@ from django.utils.cache import get_conditional_response
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_GET
 from . import asset_snapshot as snapshot
+from . import mailconf
 from . import oplog
 from .models import (
     Department, Asset, Requisition, AssetChange, Role, UserProfile,
@@ -1507,6 +1508,9 @@ def user_create(request):
             messages.error(request, f'用户名 {username} 已存在。')
         elif pwd_err:
             messages.error(request, f'密码不符合要求：{pwd_err}')
+        elif email and not mailconf.valid_email_or_none(email):
+            messages.error(request, '邮箱格式不正确，请检查后重试（留空表示不填写）。')
+            return redirect('user_create')
         else:
             user = User.objects.create_user(
                 username=username, password=password, email=email, first_name=first_name
@@ -1539,6 +1543,11 @@ def user_update(request, pk):
             if pwd_err:
                 messages.error(request, f'密码不符合要求：{pwd_err}')
                 return redirect('user_list')
+
+        # 邮箱：服务端格式校验（空值允许 = 不填写）
+        if email and not mailconf.valid_email_or_none(email):
+            messages.error(request, '邮箱格式不正确，请检查后重试（留空表示不填写）。')
+            return redirect('user_update', pk=pk)
 
         # 内置账号保护：不可停用、不可降级（避免系统被锁死）
         target_profile = getattr(user, 'profile', None)

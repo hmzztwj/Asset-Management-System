@@ -323,6 +323,61 @@ class Requisition(models.Model):
             Asset.objects.filter(pk=asset.pk).update(**fields)
 
 
+class EmailConfig(models.Model):
+    """邮件提醒配置（单条记录，pk 固定为 1）。
+
+    * 填写并启用后，每天 ``send_hour`` 点由计划任务调用
+      ``manage.py send_overdue_digest`` 发送逾期领用汇总给管理员；
+    * 未启用（或后台未填、环境变量也没有）时功能静默关闭；
+    * SMTP 密码加密存储（见 assets/mailconf.py 的 seal/unseal）。
+    """
+    enabled = models.BooleanField('启用邮件提醒', default=False)
+    smtp_host = models.CharField('SMTP 服务器', max_length=100, blank=True,
+                                 help_text='如 smtp.exmail.qq.com')
+    smtp_port = models.PositiveIntegerField('SMTP 端口', default=465)
+    use_ssl = models.BooleanField('使用 SSL', default=True,
+                                  help_text='端口 465 勾选；587 端口不勾（改用 STARTTLS）')
+    smtp_user = models.CharField('SMTP 账号', max_length=100, blank=True,
+                                 help_text='通常是发件邮箱地址')
+    smtp_password = models.CharField('SMTP 密码/授权码', max_length=300, blank=True,
+                                     help_text='加密存储；后台展示为打码')
+    from_email = models.CharField('发件人地址', max_length=100, blank=True,
+                                  help_text='留空则使用 SMTP 账号')
+    send_hour = models.PositiveIntegerField('每日发送时间（小时 0-23）', default=9)
+    last_sent_at = models.DateTimeField('上次发送时间', null=True, blank=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        verbose_name = '邮箱配置'
+        verbose_name_plural = '邮箱配置'
+
+    def __str__(self):
+        return f'邮箱配置（{"启用" if self.enabled else "停用"}）'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1  # 单例：永远只有一条配置
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def smtp_params(self):
+        """后台配置可用则返回 SMTP 参数字典，否则 None（由环境变量兜底）。"""
+        from . import mailconf
+        if not (self.enabled and self.smtp_host and self.smtp_user):
+            return None
+        return {
+            'host': self.smtp_host,
+            'port': self.smtp_port,
+            'use_ssl': self.use_ssl,
+            'username': self.smtp_user,
+            'password': mailconf.unseal_password(self.smtp_password),
+            'from_email': self.from_email or self.smtp_user,
+        }
+
+
 class AssetChange(models.Model):
     """资产变更 —— 部门转移 / 状态变更。"""
     CHANGE_TYPES = [

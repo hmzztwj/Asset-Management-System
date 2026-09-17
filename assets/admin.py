@@ -272,3 +272,7 @@ class ProtectedUserAdmin(BaseUserAdmin):
         if builtins.exists():
             self.message_user(request, '内置账号不可删除，已自动跳过。', level=messages.WARNING)
         super().delete_queryset(request, queryset.exclude(profile__is_builtin=True))
+
+
+# 邮箱配置（模型定义在 models.py，注册逻辑独立成文件便于维护）
+from . import admin_emailconf  # noqa: E402,F401
