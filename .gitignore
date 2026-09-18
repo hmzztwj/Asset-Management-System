@@ -27,6 +27,10 @@ Thumbs.db
 *.swp
 *~
 ~$*
+*.bak
+*.orig
+*.old
+*.tmp
 
 # ---- 本工作区记忆（.workbuddy）----
 .workbuddy/
