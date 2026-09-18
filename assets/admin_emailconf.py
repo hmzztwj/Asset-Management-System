@@ -75,8 +75,15 @@ class EmailConfigAdmin(admin.ModelAdmin):
         return self._only_superuser(request)
 
     def has_add_permission(self, request):
-        # 单例：已有配置就不再提供"新增"入口
-        return self._only_superuser(request) and not EmailConfig.objects.exists()
+        # 单例：已有配置就不再提供"新增"入口。
+        # 防御：迁移未执行（表不存在）时查库会抛 OperationalError——
+        # 不能让它把整个 /admin/ 拖成 500，这里静默按"无权限"处理。
+        if not self._only_superuser(request):
+            return False
+        try:
+            return not EmailConfig.objects.exists()
+        except Exception:  # noqa: BLE001（表缺失等数据库异常）
+            return False
 
     def has_delete_permission(self, request, obj=None):
         return self._only_superuser(request)
