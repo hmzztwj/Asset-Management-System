@@ -65,3 +65,12 @@ class IdleTimeoutTests(TestCase):
         r = self.client.get('/library/')
         follow = self.client.get(r['Location'])
         self.assertContains(follow, '长时间未操作，已自动退出')
+
+
+class FaviconRedirectTests(TestCase):
+    """浏览器默认会请求 /favicon.ico，应 301 到静态 SVG 而不是 404。"""
+
+    def test_favicon_redirects_to_svg(self):
+        r = self.client.get('/favicon.ico')
+        self.assertEqual(r.status_code, 301)
+        self.assertEqual(r['Location'], '/static/img/favicon.svg')
