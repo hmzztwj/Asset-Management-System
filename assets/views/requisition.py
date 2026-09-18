@@ -57,13 +57,7 @@ def requisition(request):
 def requisition_export(request):
     """按当前筛选条件导出「资产领用」记录为 Excel。"""
     status = request.GET.get('status', '')
-    all_records = list(Requisition.objects.select_related('asset', 'department').order_by('-borrow_date'))
-    if status == '逾期':
-        records = [r for r in all_records if r.display_status == '逾期']
-    elif status:
-        records = [r for r in all_records if r.status == status]
-    else:
-        records = all_records
+    records = _filtered_requisitions(status)
 
     wb = Workbook()
     ws = wb.active

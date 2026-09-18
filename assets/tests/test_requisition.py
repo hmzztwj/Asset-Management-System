@@ -150,3 +150,59 @@ class OverdueDerivedStatusTests(TestCase):
         )
         self.assertFalse(req.is_overdue)
         self.assertEqual(req.display_status, '借出')
+
+
+class RequisitionListViewTests(TestCase):
+    """列表页状态筛选（逾期在数据库侧推导，口径与 display_status 一致）。"""
+
+    def setUp(self):
+        dept = make_department('研发一部')
+        # 三条互不相干的记录：逾期 / 在借 / 已归还
+        a1 = make_asset(asset_id='ZC-L1', name='逾期机', department=dept, status='借出')
+        Requisition.objects.create(
+            asset=a1, user='张三', department=dept, purpose='p1',
+            due_date=TODAY() - datetime.timedelta(days=2),
+        )
+        a2 = make_asset(asset_id='ZC-L2', name='在借机', department=dept, status='借出')
+        Requisition.objects.create(
+            asset=a2, user='李四', department=dept, purpose='p2',
+            due_date=TODAY() + datetime.timedelta(days=2),
+        )
+        a3 = make_asset(asset_id='ZC-L3', name='已还机', department=dept, status='库存')
+        req3 = Requisition.objects.create(
+            asset=a3, user='王五', department=dept, purpose='p3',
+            due_date=TODAY() + datetime.timedelta(days=2),
+        )
+        req3.status = '已归还'
+        req3.save()
+        a3.refresh_from_db()
+        if a3.status == '借出':      # 归还联动把资产复位后防御性核对
+            a3.status = '库存'
+            a3.save(update_fields=['status'])
+
+        from assets.tests.base import make_user
+        self.client.force_login(make_user('req_viewer'))
+
+    def _names(self, r):
+        # 用 context 断言列表内容；页面 HTML 里还有全局逾期弹窗，不能直接 NotContains
+        return {rec.asset.name for rec in r.context['records']}
+
+    def test_list_shows_all(self):
+        r = self.client.get('/requisition/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self._names(r), {'逾期机', '在借机', '已还机'})
+
+    def test_overdue_filter_db_side(self):
+        r = self.client.get('/requisition/', {'status': '逾期'})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self._names(r), {'逾期机'})
+
+    def test_status_filter(self):
+        r = self.client.get('/requisition/', {'status': '借出'})
+        self.assertEqual(self._names(r), {'逾期机', '在借机'})
+        r = self.client.get('/requisition/', {'status': '已归还'})
+        self.assertEqual(self._names(r), {'已还机'})
+
+    def test_overdue_count_in_context(self):
+        r = self.client.get('/requisition/')
+        self.assertEqual(r.context['overdue_count'], 1)
