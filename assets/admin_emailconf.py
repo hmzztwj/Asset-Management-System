@@ -60,6 +60,14 @@ class EmailConfigForm(forms.ModelForm):
 class EmailConfigAdmin(admin.ModelAdmin):
     form = EmailConfigForm
     list_display = ('enabled', 'smtp_host', 'smtp_user', 'send_hour', 'last_sent_at', 'updated_at')
+    change_list_template = 'admin/assets/emailconfig/change_list.html'
+
+    def changelist_view(self, request, extra_context=None):
+        # 列表页顶部提供醒目的「编辑邮箱配置」入口（单例，正常只有一条）
+        obj = EmailConfig.objects.first()
+        extra_context = extra_context or {}
+        extra_context['config_pk'] = obj.pk if obj else None
+        return super().changelist_view(request, extra_context=extra_context)
 
     # ---------- 权限：仅超管 ----------
     def _only_superuser(self, request):
