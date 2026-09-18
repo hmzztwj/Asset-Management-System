@@ -25,6 +25,7 @@ def login_view(request):
         return redirect(reverse('dashboard'))
 
     kicked = request.GET.get('kicked') == '1'
+    idle = request.GET.get('idle') == '1'
 
     if request.method == 'POST':
         username = request.POST.get('username', '').strip()
@@ -88,7 +89,7 @@ def login_view(request):
             'error': True, 'error_msg': error_msg, 'username': username,
         })
 
-    return render(request, 'login.html', {'kicked': kicked})
+    return render(request, 'login.html', {'kicked': kicked, 'idle': idle})
 
 
 def logout_view(request):

@@ -47,6 +47,8 @@
 
             {% if kicked %}
             <div class="message error" style="display:block;">您的账号已在其他设备登录，本机已退出。</div>
+            {% elif idle %}
+            <div class="message error" style="display:block;">长时间未操作，已自动退出，请重新登录。</div>
             {% elif error %}
             <div class="message error" style="display:block;">{{ error_msg|default:'用户名或密码不正确，请重试。' }}</div>
             {% endif %}

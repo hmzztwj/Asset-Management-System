@@ -1,21 +1,16 @@
-"""自动备份中间件。
+"""会话与备份相关中间件。
 
-在每次请求结束后检查自动备份设置并视情况触发一次整库备份：
-
-- 定时型（每天定时 / 每隔 3 天 / 每隔 7 天）：**任意请求**（包括只是
-  打开页面浏览）都会参与判断，只要已过设定的备份时刻且满足间隔，
-  就补做一次备份；判断完全基于时间，不依赖任何写操作。
-- 每次数据变动：当请求为写操作（POST / PUT / PATCH / DELETE）且响应成功时触发。
-
-设计要点：
-- 一次操作（如一次导入）只在请求结束时触发一次，而不是每条记录触发一次；
-- 所有异常均被吞掉，备份失败绝不影响正常请求；
-- 备份管理页自身的操作不会再次触发自动备份（避免自我循环）。
+- SingleDeviceMiddleware：单设备登录（非超管同账号仅一台设备在线）。
+- IdleTimeoutMiddleware：空闲超时（长时间无操作自动退出，防共享电脑挂机）。
+- AutoBackupMiddleware：请求结束后按设置触发整库自动备份
+  （定时型任意请求参与判断；数据变动型仅写操作触发）。
 """
 import time
 
+from django.conf import settings
 from django.contrib.auth import logout
 from django.http import HttpResponseRedirect
+from django.utils.http import urlencode
 
 _DEBOUNCE = 5  # 秒：极短时间内不重复触发，避免同一操作的后续请求造成重复备份
 _last_auto = 0.0
@@ -63,6 +58,50 @@ class SingleDeviceMiddleware:
         if profile.session_key != current:
             logout(request)
             return HttpResponseRedirect('/login/?kicked=1')
+        return None
+
+
+class IdleTimeoutMiddleware:
+    """空闲会话超时：长时间无操作的登录态自动失效。
+
+    - 超时时长由 env ``ASSETS_IDLE_TIMEOUT``（分钟）控制，默认 30，设 0 关闭；
+    - 只对已登录用户生效；超管同样受控（共享电脑场景超管更不该挂机）；
+    - 活跃时间戳记在会话里，节流写入（每分钟最多刷一次），不增加请求负担；
+    - 被踢出的会话跳登录页并提示「长时间未操作」。
+    """
+
+    _KEY = '_last_activity'      # 会话里的活跃时间戳（Unix 秒）
+    _WRITE_THRESHOLD = 60        # 秒：距上次写入不足该值就不重写会话
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        timeout_min = int(getattr(settings, 'IDLE_TIMEOUT_MINUTES', 30) or 0)
+        if timeout_min > 0:
+            response = self._check(request, timeout_min * 60)
+            if response is not None:
+                return response
+        return self.get_response(request)
+
+    def _check(self, request, timeout_sec):
+        user = getattr(request, 'user', None)
+        if user is None or not user.is_authenticated:
+            return None
+        path = request.path or ''
+        if path.startswith(('/static/', '/media/')):
+            return None
+
+        now = time.time()
+        last = request.session.get(self._KEY)
+        if last and (now - float(last)) > timeout_sec:
+            logout(request)
+            query = urlencode({'idle': '1'})
+            return HttpResponseRedirect('/login/?' + query)
+
+        # 节流刷新活跃时间：避免每个请求都写一遍会话
+        if not last or (now - float(last)) >= self._WRITE_THRESHOLD:
+            request.session[self._KEY] = now
         return None
 
 

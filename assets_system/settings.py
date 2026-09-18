@@ -80,6 +80,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # 单设备登录：普通账号同一时间仅允许一台设备在线，超管不受限
     'assets.middleware.SingleDeviceMiddleware',
+    # 空闲超时：长时间无操作自动退出（ASSETS_IDLE_TIMEOUT 分钟，0 关闭）
+    'assets.middleware.IdleTimeoutMiddleware',
     # 自动备份：按设置（每 1/3/7 天 或 每次数据库变动）触发整库备份
     'assets.middleware.AutoBackupMiddleware',
 ]
@@ -114,6 +116,13 @@ LOGOUT_REDIRECT_URL = '/login/'
 # 勾选“记住我”时通过 set_expiry 覆盖为长会话；未勾选则浏览器关闭即失效
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 30
+
+# 空闲会话超时（分钟）：登录后超过该时长无任何操作自动退出；设 0 关闭。
+# 对应中间件 assets.middleware.IdleTimeoutMiddleware。
+try:
+    IDLE_TIMEOUT_MINUTES = int(os.environ.get('ASSETS_IDLE_TIMEOUT', '30') or 0)
+except ValueError:
+    IDLE_TIMEOUT_MINUTES = 30
 
 # 数据库默认路径：项目根目录下的 data/db.sqlite3（与部署文档、Docker 挂载卷结构一致）
 # 可通过环境变量 ASSETS_DB_PATH 覆盖（例如生成/使用独立的演示库，避免触碰真实库）
