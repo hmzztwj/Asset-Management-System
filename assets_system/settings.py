@@ -34,10 +34,22 @@ SECRET_KEY = os.environ.get(
 # 本地排查问题时可用 ASSETS_DEBUG=1 临时打开
 DEBUG = _env_bool('ASSETS_DEBUG', False)
 
-# 允许访问的主机：默认放开（内网小团队），如需收紧用 ASSETS_ALLOWED_HOSTS 逗号分隔指定
-ALLOWED_HOSTS = [
-    h.strip() for h in os.environ.get('ASSETS_ALLOWED_HOSTS', '*').split(',') if h.strip()
-] or ['*']
+# 允许访问的主机：默认放开（内网小团队），如需收紧用 ASSETS_ALLOWED_HOSTS 逗号分隔指定。
+# 收紧时程序会自动追加 127.0.0.1 / localhost——容器健康检查（HEALTHCHECK 探测
+# http://127.0.0.1:8000/login/）必须走通，否则容器会被标记为 unhealthy。
+def _build_allowed_hosts(raw):
+    raw = (raw or '').strip()
+    if not raw:
+        return ['*']
+    hosts = [h.strip() for h in raw.split(',') if h.strip()]
+    if '*' not in hosts:
+        for local in ('127.0.0.1', 'localhost'):
+            if local not in hosts:
+                hosts.append(local)
+    return hosts or ['*']
+
+
+ALLOWED_HOSTS = _build_allowed_hosts(os.environ.get('ASSETS_ALLOWED_HOSTS', '*'))
 
 # ---- 反向代理（Nginx/OpenResty/1Panel 网站）支持 ----
 # 经过 HTTPS 反代访问时，Nginx 会带 X-Forwarded-Proto 头；

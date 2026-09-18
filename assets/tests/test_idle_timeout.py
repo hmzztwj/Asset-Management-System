@@ -74,3 +74,33 @@ class FaviconRedirectTests(TestCase):
         r = self.client.get('/favicon.ico')
         self.assertEqual(r.status_code, 301)
         self.assertEqual(r['Location'], '/static/img/favicon.svg')
+
+
+class AllowedHostsBuilderTests(TestCase):
+    """ALLOWED_HOSTS 收紧时自动放行 127.0.0.1/localhost（容器健康检查依赖）。"""
+
+    def test_wildcard_stays_wildcard(self):
+        from assets_system.settings import _build_allowed_hosts
+        self.assertEqual(_build_allowed_hosts('*'), ['*'])
+
+    def test_tightened_list_gets_local_hosts(self):
+        from assets_system.settings import _build_allowed_hosts
+        hosts = _build_allowed_hosts('10.0.0.1,www.example.com,example.com')
+        self.assertEqual(hosts[:3], ['10.0.0.1', 'www.example.com', 'example.com'])
+        self.assertIn('127.0.0.1', hosts)
+        self.assertIn('localhost', hosts)
+
+    def test_no_duplicate_local_hosts(self):
+        from assets_system.settings import _build_allowed_hosts
+        hosts = _build_allowed_hosts('127.0.0.1,10.0.0.1')
+        self.assertEqual(hosts.count('127.0.0.1'), 1)
+        self.assertIn('localhost', hosts)
+
+    def test_empty_falls_back_to_wildcard(self):
+        from assets_system.settings import _build_allowed_hosts
+        self.assertEqual(_build_allowed_hosts(''), ['*'])
+
+    def test_blank_items_skipped(self):
+        from assets_system.settings import _build_allowed_hosts
+        hosts = _build_allowed_hosts(' 10.0.0.1 , , www.x.com ')
+        self.assertEqual(hosts, ['10.0.0.1', 'www.x.com', '127.0.0.1', 'localhost'])
