@@ -1630,6 +1630,7 @@ _PERM_FIELDS = [
     ('view_requisition', '查看资产领用'), ('manage_requisition', '管理资产领用'),
     ('view_change', '查看资产变更'), ('manage_change', '管理资产变更'),
     ('manage_users', '管理用户/角色'),
+    ('email_notify', '接收邮箱通知'),
 ]
 
 _PERM_GROUPS = [
@@ -1639,6 +1640,7 @@ _PERM_GROUPS = [
     {'title': '资产领用', 'items': [('view_requisition', '查看'), ('manage_requisition', '管理')]},
     {'title': '资产变更', 'items': [('view_change', '查看'), ('manage_change', '管理')]},
     {'title': '用户/角色', 'items': [('manage_users', '管理用户/角色')]},
+    {'title': '邮箱通知', 'items': [('email_notify', '接收逾期提醒等通知邮件（需账号填写邮箱）')]},
 ]
 
 

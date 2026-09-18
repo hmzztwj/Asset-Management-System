@@ -19,6 +19,10 @@ class Role(models.Model):
     view_change = models.BooleanField('查看资产变更', default=True)
     manage_change = models.BooleanField('管理资产变更', default=False)
     manage_users = models.BooleanField('管理用户/角色', default=False)
+    email_notify = models.BooleanField(
+        '邮箱通知', default=False,
+        help_text='勾选后，该角色下的账号（填了邮箱的）会收到逾期提醒等通知邮件',
+    )
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
     class Meta:
@@ -34,7 +38,7 @@ class Role(models.Model):
         fields = [
             'can_access_admin', 'view_assets', 'manage_assets', 'view_org', 'manage_org',
             'view_requisition', 'manage_requisition', 'view_change', 'manage_change',
-            'manage_users',
+            'manage_users', 'email_notify',
         ]
         return [f for f in fields if getattr(self, f)]
 

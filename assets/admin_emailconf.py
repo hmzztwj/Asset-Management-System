@@ -8,6 +8,9 @@ import logging
 from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
+from django.http import HttpResponseRedirect
+from django.shortcuts import redirect
+from django.urls import path
 
 from . import mailconf, oplog
 from .models import EmailConfig
@@ -61,13 +64,36 @@ class EmailConfigAdmin(admin.ModelAdmin):
     form = EmailConfigForm
     list_display = ('enabled', 'smtp_host', 'smtp_user', 'send_hour', 'last_sent_at', 'updated_at')
     change_list_template = 'admin/assets/emailconfig/change_list.html'
+    # 单例配置没有批量动作可言：去掉顶部「动作」下拉与多选框
+    actions = None
 
     def changelist_view(self, request, extra_context=None):
-        # 列表页顶部提供醒目的「编辑邮箱配置」入口（单例，正常只有一条）
+        # 列表页顶部提供醒目的操作按钮（单例，正常只有一条）
         obj = EmailConfig.objects.first()
         extra_context = extra_context or {}
         extra_context['config_pk'] = obj.pk if obj else None
+        extra_context['notify_on'] = bool(obj and obj.enabled)
         return super().changelist_view(request, extra_context=extra_context)
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom = [
+            path('toggle-notify/', self.admin_site.admin_view(self.toggle_notify),
+                 name='assets_emailconfig_toggle_notify'),
+        ]
+        return custom + urls
+
+    def toggle_notify(self, request):
+        """一键开/关自动通知（即 enabled 开关），免进编辑页。"""
+        if request.method == 'POST' and self._only_superuser(request):
+            cfg = EmailConfig.load()
+            cfg.enabled = not cfg.enabled
+            cfg.save(update_fields=['enabled', 'updated_at'])
+            state = '开启' if cfg.enabled else '取消'
+            messages.success(request, f'已{state}自动通知。')
+            oplog.log(request, 'system', 'update', target='邮箱配置',
+                      detail=f'自动通知={state}')
+        return redirect('admin:assets_emailconfig_changelist')
 
     # ---------- 权限：仅超管 ----------
     def _only_superuser(self, request):
@@ -147,5 +173,4 @@ class EmailConfigAdmin(admin.ModelAdmin):
 
     def _rerender(self, request, obj):
         """保存后重新打开本页（提示消息随本次响应展示）。"""
-        from django.http import HttpResponseRedirect
         return HttpResponseRedirect(request.path)

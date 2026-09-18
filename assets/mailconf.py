@@ -91,7 +91,11 @@ def valid_email_or_none(raw) -> str:
 
 
 def digest_recipients():
-    """逾期提醒收件人：拥有「管理资产领用」权限的账号 + 超管里填了有效邮箱的人。"""
+    """逾期提醒收件人：勾选了「邮箱通知」的角色下的账号 + 超管里填了有效邮箱的人。
+
+    「邮箱通知」是角色上独立的勾选框（角色管理里设置），与页面访问权限解耦，
+    只决定这个账号收不收通知邮件。按邮箱去重，无效/为空跳过。
+    """
     from django.contrib.auth.models import User
 
     emails = []
@@ -99,7 +103,7 @@ def digest_recipients():
         User.objects.filter(is_active=True)
         .select_related('profile__role')
         .filter(is_superuser=True) | User.objects.filter(
-            is_active=True, profile__role__manage_requisition=True,
+            is_active=True, profile__role__email_notify=True,
         )
     ).distinct()
     for u in users:

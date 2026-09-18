@@ -31,17 +31,17 @@ ROLE_DATA = {
                         can_access_admin=True, view_assets=True, manage_assets=True,
                         view_org=True, manage_org=True, view_requisition=True,
                         manage_requisition=True, view_change=True, manage_change=True,
-                        manage_users=True, is_system=True),
+                        manage_users=True, email_notify=True, is_system=True),
     'admin': dict(name='管理员', description='管理各模块数据',
                   can_access_admin=True, view_assets=True, manage_assets=True,
                   view_org=True, manage_org=True, view_requisition=True,
                   manage_requisition=True, view_change=True, manage_change=True,
-                  manage_users=True, is_system=True),
+                  manage_users=True, email_notify=True, is_system=True),
     'user': dict(name='普通用户', description='只读浏览各模块',
                  can_access_admin=False, view_assets=True, manage_assets=False,
                  view_org=True, manage_org=False, view_requisition=True,
                  manage_requisition=False, view_change=True, manage_change=False,
-                 manage_users=False, is_system=True),
+                 manage_users=False, email_notify=False, is_system=True),
 }
 
 

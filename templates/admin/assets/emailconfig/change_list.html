@@ -1,10 +1,32 @@
 {% extends "admin/change_list.html" %}
+{% load i18n %}
 
 {% block object-tools %}
-    {{ block.super }}
     {% if config_pk %}
     <ul class="object-tools">
         <li><a href="{% url 'admin:assets_emailconfig_change' config_pk %}" class="editlink">编辑邮箱配置</a></li>
+        <li>
+            <form method="post" action="{% url 'admin:assets_emailconfig_toggle_notify' %}" style="margin:0">
+                {% csrf_token %}
+                <button type="submit" class="button {% if notify_on %}default{% endif %}"
+                        title="即编辑页里的「启用邮件提醒」开关">
+                    {% if notify_on %}取消自动通知{% else %}开启自动通知{% endif %}
+                </button>
+            </form>
+        </li>
+        <li><a href="{% url 'admin:assets_emailconfig_delete' config_pk %}" class="deletelink">删除配置</a></li>
     </ul>
+    {% else %}
+    {{ block.super }}
     {% endif %}
+{% endblock %}
+
+{% block result_list %}
+    {% if config_pk %}
+    <p style="margin:8px 0;color:#666">
+        {% if notify_on %}自动通知：<b style="color:#1d7a3d">开启中</b>（每日按配置时间发送逾期汇总）{% else %}自动通知：<b style="color:#a33">已关闭</b>{% endif %}
+        ——点击上方「编辑邮箱配置」修改 SMTP 与发送时间。
+    </p>
+    {% endif %}
+    {{ block.super }}
 {% endblock %}
